@@ -7,7 +7,7 @@ import { GoogleGenAI } from '@google/genai';
 import { NewsAnalysis, RagDocument, RagSearchResult } from '../types';
 import { saveEmbedding, getEmbeddingByNewsId, getAllEmbeddings, deleteEmbedding } from '../db';
 
-const EMBEDDING_MODEL = 'text-embedding-004';
+const EMBEDDING_MODEL = 'gemini-embedding-exp-03-07';
 const MAX_CONTEXT_DOCS = 5;
 
 // Calcula similaridade cosseno entre dois vetores
@@ -46,10 +46,10 @@ export async function generateEmbedding(apiKey: string, news: NewsAnalysis): Pro
     const ai = new GoogleGenAI({ apiKey });
     const text = buildEmbeddingText(news);
     const result = await ai.models.embedContent({
-      model: EMBEDDING_MODEL,
+          const result = await ai.models.embedContent({
       contents: text,
     });
-    const embedding = result.embeddings?.[0]?.values;
+        const embedding = result.embedding?.values ?? result.embeddings?.[0]?.values;
     if (!embedding || embedding.length === 0) return null;
 
     const doc: RagDocument = {
@@ -92,7 +92,7 @@ export async function semanticSearch(
       model: EMBEDDING_MODEL,
       contents: query,
     });
-    const queryVec = result.embeddings?.[0]?.values;
+        const queryVec = result.embedding?.values ?? result.embeddings?.[0]?.values;
     if (!queryVec || queryVec.length === 0) return [];
 
     const allDocs = await getAllEmbeddings();
