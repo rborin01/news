@@ -1,7 +1,7 @@
 
 # BLUEPRINT DO SISTEMA: TRUE PRESS (NUCLEAR CORE)
 
-**Versão:** 3.4.1 (Redundancy Update)
+**Versão:** 3.5.0 (Deploy & PWA Fix)
 **Status:** DO-178C LEVEL A (CRÍTICO)
 
 ## 0. REGRAS DE OURO (ARQUITETURA)
@@ -82,5 +82,24 @@ O sistema nunca deve retornar "vazio" sem tentar todas as camadas:
 20. `components/RawDataCard.tsx`
 21. `components/CommodityItem.tsx`
 22. `components/NewsChart.tsx`
-23. `components/DeepAnalysisModal.tsx`
-24. `components/NeuralBridgeModal.tsx`
+
+23. ---
+
+24. ## CHANGELOG
+
+25. ### v3.5.0 — Deploy & PWA Fix (2026-02-25)
+26. - **DEPLOY**: Site ao vivo em https://news.rodrigoborin.com (Vercel + Cloudflare Full SSL)
+    - - **FIX**: `vite.config.ts` corrigido para usar `process.env.VITE_API_KEY` na build do Vercel
+    - **FIX**: `index.html` — removido Tailwind CDN duplicado e tags duplicadas, depois restaurado CDN
+    - - **ADD**: `public/manifest.json` — PWA manifest com metadados, categorias e ícones
+      - - **ADD**: `public/favicon.svg` — ícone SVG (dark #0f172a + TP azul #38bdf8)
+        - - **ADD**: `index.html` linha 16 — `<link rel="icon" type="image/svg+xml" href="/favicon.svg" />`
+          - - **ADD**: `public/` — nova pasta no repo (antes inexistente)
+            - - **WHITELIST UPDATE**: Adicionado `index.css`, `public/manifest.json`, `public/favicon.svg`
+             
+              - ### v3.4.1 — Redundancy Update (sessões anteriores)
+              - - Bing RSS Proxy adicionado (L4 cascade)
+                - - Headers anti-bot em api/scrape.js
+                  - - Gemini Fallback Grounding em services/geminiService.ts
+27. `components/DeepAnalysisModal.tsx`
+28. `components/NeuralBridgeModal.tsx`
