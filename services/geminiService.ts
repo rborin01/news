@@ -1,5 +1,5 @@
 
-import { GoogleGenAI } from "@google/genai";
+import { generateWithGemini } from "./supabaseClient";
 import { RODRIGO_PROFILE, Timeframe, AIConfig, NewsAnalysis, CommodityForecast, ExternalAnalysisResult, MarketSentiment, AiInvestigation, RawFeedItem } from "../types";
 import { harvestGoogleNews } from "./rssService";
 import { scrapeViaPython, checkPythonHealth } from "./pythonBridge";
@@ -12,13 +12,21 @@ const generateStableId = (text: string) => {
     for (i = 0; i < text.length; i++) {
         chr = text.charCodeAt(i);
         hash = ((hash << 5) - hash) + chr;
-        hash |= 0;
+        hash |= 0;h
     }
     return 'news-' + Math.abs(hash).toString(36);
 };
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Adapter: wraps generateWithGemini to match old ai.models.generateContent API
 
+const ai = {
+  models: {
+    generateContent: async ({ model, contents, config }: { model: string; contents: string; config?: any }) => {
+      const text = await generateWithGemini(contents, model);
+      return { text };
+    }
+  }
+};
 const isRateLimitError = (e: any) => {
     return e?.status === 429 || 
            e?.message?.includes('429') || 
