@@ -3,11 +3,11 @@
 // DO-178C Level A - Versão 1.0.0
 // Responsabilidade: Gerar embeddings, armazenar vetores e recuperar contexto semântico
 
-import { GoogleGenAI } from '@google/genai';
+import { generateEmbedding } from './supabaseClient';
 import { NewsAnalysis, RagDocument, RagSearchResult } from '../types';
 import { saveEmbedding, getEmbeddingByNewsId, getAllEmbeddings, deleteEmbedding } from '../db';
 
-const EMBEDDING_MODEL = 'gemini-embedding-001';
+// EMBEDDING_MODEL handled by Edge Function
 const MAX_CONTEXT_DOCS = 5;
 
 // Calcula similaridade cosseno entre dois vetores
@@ -43,13 +43,9 @@ export async function generateEmbedding(apiKey: string, news: NewsAnalysis): Pro
     const existing = await getEmbeddingByNewsId(news.id);
     if (existing) return existing;
 
-    const ai = new GoogleGenAI({ apiKey });
+    // API key handled server-side via Edge Function
     const text = buildEmbeddingText(news);
-    const result = await ai.models.embedContent({
-                model: EMBEDDING_MODEL,
-      contents: text,
-    });
-        const embedding = result.embedding?.values ?? result.embeddings?.[0]?.values;
+        const embedding = await generateEmbedding(text);
     
     const doc: RagDocument = {
       id: `rag_${news.id}`,
@@ -86,12 +82,8 @@ export async function semanticSearch(
   topK: number = MAX_CONTEXT_DOCS
 ): Promise<RagSearchResult[]> {
   try {
-    const ai = new GoogleGenAI({ apiKey });
-    const result = await ai.models.embedContent({
-      model: EMBEDDING_MODEL,
-      contents: query,
-    });
-        const queryVec = result.embedding?.values ?? result.embeddings?.[0]?.values;
+    // API key handled server-side via Edge Function
+        const queryVec = await generateEmbedding(query);
     if (!queryVec || queryVec.length === 0) return [];
 
     const allDocs = await getAllEmbeddings();
