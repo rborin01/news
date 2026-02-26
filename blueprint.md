@@ -1,7 +1,7 @@
 
 # BLUEPRINT DO SISTEMA: TRUE PRESS (NUCLEAR CORE)
 
-**Versão:** 3.5.0 (Deploy & PWA Fix)
+**Versão:** 3.5.1 (Fix Modelos Gemini & Embedding)
 **Status:** DO-178C LEVEL A (CRÍTICO)
 
 ## 0. REGRAS DE OURO (ARQUITETURA)
@@ -101,5 +101,16 @@ O sistema nunca deve retornar "vazio" sem tentar todas as camadas:
               - - Bing RSS Proxy adicionado (L4 cascade)
                 - - Headers anti-bot em api/scrape.js
                   - - Gemini Fallback Grounding em services/geminiService.ts
+                   
+                    - ### v3.5.1 — Fix Modelos Gemini & Embedding (2026-02-26)
+                    - - **FIX**: `services/geminiService.ts` — substituídos modelos inexistentes:
+                      -   - `gemini-3-flash-preview` → `gemini-2.0-flash` (2 ocorrências: linhas 150, 278)
+                          -   - `gemini-3-pro-preview` → `gemini-2.5-pro-preview-03-25` (4 ocorrências: linhas 333, 399, 440, 451)
+                              - - **FIX**: `services/ragService.ts` — corrigido modelo de embedding:
+                                -   - `text-embedding-004` → `gemini-embedding-001` (compatível com embedContent v1beta)
+                                    -   - Corrigida extração de resultado: `result.embedding?.values ?? result.embeddings?.[0]?.values`
+                                        -   - Corrigida estrutura `embedContent` (linha duplicada `const result` removida)
+                                            - - **RESULTADO**: Zero erros 404 RAG, zero erros 429 Gemini em produção
+                                              - - **DEPLOY**: Commit `e8d716e` — Vercel `491WAWa5T` Ready
 27. `components/DeepAnalysisModal.tsx`
 28. `components/NeuralBridgeModal.tsx`
