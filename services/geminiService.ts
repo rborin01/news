@@ -147,7 +147,7 @@ export const fetchNewsBatch = async (topicFocus: string = "Geral", aiConfig: AIC
 
     // --- FLUXO GEMINI (CLOUD MAX POWER) ---
     // Usando Gemini 3 Flash para velocidade na análise de notícias em massa
-    const modelName = 'gemini-3-flash-preview'; 
+    const modelName = 'gemini-2.0-flash'; 
     
     const config: any = { 
         temperature: 0.4, // Um pouco mais criativo para conectar pontos
@@ -275,7 +275,7 @@ export const fetchCommoditiesUpdate = async (aiConfig: AIConfig): Promise<Commod
     try {
         // Gemini 3 Flash para busca rápida e eficiente
         const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: 'gemini-2.0-flash',
             contents: prompt,
             config: { 
                 temperature: 0.0, 
@@ -330,7 +330,7 @@ export const generateDeepAnalysis = async (query: string, aiConfig: AIConfig): P
     
     try {
         const response = await ai.models.generateContent({
-            model: 'gemini-3-pro-preview', // MODELO DE ALTA INTELIGÊNCIA
+            model: 'gemini-2.5-pro-preview-03-25', // MODELO DE ALTA INTELIGÊNCIA
             contents: prompt,
             config: { 
                 temperature: 0.7, 
@@ -396,7 +396,7 @@ export const generateRagEnrichedAnalysis = async (
     try {
         const genAi = new GoogleGenAI({ apiKey });
         const response = await genAi.models.generateContent({
-            model: 'gemini-3-pro-preview',
+            model: 'gemini-2.5-pro-preview-03-25',
             contents: prompt,
             config: { 
                 temperature: 0.5, 
@@ -437,7 +437,7 @@ export const generateDailySummary = async (newsItems: NewsAnalysis[], aiConfig: 
     try { 
         // Gemini 3 Pro para um resumo executivo de altíssimo nível
         const res = await ai.models.generateContent({ 
-            model: 'gemini-3-pro-preview', 
+            model: 'gemini-2.5-pro-preview-03-25', 
             contents: `Atue como Conselheiro Estratégico. Resuma executivamente para Rodrigo Borin:\n${topNews}`,
             config: { thinkingConfig: { thinkingBudget: 1024 } }
         });
@@ -448,7 +448,7 @@ export const generateDailySummary = async (newsItems: NewsAnalysis[], aiConfig: 
 export const generateMarketSentiment = async (context: string, aiConfig: AIConfig): Promise<MarketSentiment | null> => {
     try {
         const response = await ai.models.generateContent({
-            model: 'gemini-3-pro-preview', // POWER MODE
+            model: 'gemini-2.5-pro-preview-03-25', // POWER MODE
             contents: `ANÁLISE NEURAL DE MERCADO (FOREX/B3/AGRO).\nContexto:\n${context.substring(0, 2000)}\nRetorne JSON MarketSentiment. Seja implacável na avaliação de risco.`,
             config: { 
                 temperature: 0.5, 
