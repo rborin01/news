@@ -46,12 +46,11 @@ export async function generateEmbedding(apiKey: string, news: NewsAnalysis): Pro
     const ai = new GoogleGenAI({ apiKey });
     const text = buildEmbeddingText(news);
     const result = await ai.models.embedContent({
-          const result = await ai.models.embedContent({
+                model: EMBEDDING_MODEL,
       contents: text,
     });
         const embedding = result.embedding?.values ?? result.embeddings?.[0]?.values;
-    if (!embedding || embedding.length === 0) return null;
-
+    
     const doc: RagDocument = {
       id: `rag_${news.id}`,
       newsId: news.id,
