@@ -7,7 +7,7 @@ import { GoogleGenAI } from '@google/genai';
 import { NewsAnalysis, RagDocument, RagSearchResult } from '../types';
 import { saveEmbedding, getEmbeddingByNewsId, getAllEmbeddings, deleteEmbedding } from '../db';
 
-const EMBEDDING_MODEL = 'gemini-embedding-exp-03-07';
+const EMBEDDING_MODEL = 'gemini-embedding-001';
 const MAX_CONTEXT_DOCS = 5;
 
 // Calcula similaridade cosseno entre dois vetores
