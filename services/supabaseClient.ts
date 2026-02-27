@@ -95,3 +95,25 @@ export async function getSnapshotsFromSupabase(): Promise<any[]> {
     return [];
   }
 }
+
+// generateWithGemini - used by geminiService.ts
+export async function generateWithGemini(prompt: string, model?: string): Promise<string> {
+  try {
+    const result = await callGeminiProxy('generate', { prompt, model });
+    return result?.text || '';
+  } catch (e) {
+    console.warn('[supabaseClient] generateWithGemini error:', e);
+    throw e;
+  }
+}
+
+// generateEmbedding - may be used by ragService.ts
+export async function generateEmbedding(text: string): Promise<number[]> {
+  try {
+    const result = await callGeminiProxy('embed', { text });
+    return result?.embedding || [];
+  } catch (e) {
+    console.warn('[supabaseClient] generateEmbedding error:', e);
+    return [];
+  }
+}
