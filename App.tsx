@@ -8,7 +8,7 @@ import { fetchNewsBatch, fetchInvestigationBatch, fetchCommoditiesUpdate, genera
 import { saveReport, getAllNews, persistNewsItems, loadCurrentState, saveCurrentState, saveSnapshot, getEmbeddingCount } from './db';
 import { IntelligenceReport, NewsAnalysis, SystemLogEntry, AIConfig, RagIndexStatus } from './types';
 import { indexNewsBatch, semanticSearch, pruneOrphanEmbeddings } from './services/ragService';
-import { runFullPipeline, fetchProcessedNews, getQueueStats } from './services/newsQueue';
+import { runFullPipeline, processQueue, fetchProcessedNews, getQueueStats, QueueStats } from './services/newsQueue';
 import { RSS_FEEDS } from './services/rssFeeds';
 
 const ROTATION_QUEUE = [
@@ -385,63 +385,43 @@ function App() {
       } finally { stopSim(); setProgress(100); setTimeout(() => setLoading(false), 500); }
   };
 
-  const executeAutoPilotStep = useCallback(async () => {
-      if (isRunningRef.current) return;
-      isRunningRef.current = true;
-      const task = ROTATION_QUEUE[nextAutoTaskIndex];
-      const timeStr = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-      
-      setAutoPilotStatus(`[${timeStr}] Minerando: ${task.label}...`);
-      
-      let success = false;
-      try {
-          // Pipeline v3.7.0 - RSS to raw_news to Gemini to processed_news
-      const feedUrls = RSS_FEEDS.map(f => f.url);
-      const { ingested, processed } = await runFullPipeline(feedUrls);
-      console.log('[Piloto] Ingeridos: ' + ingested.inserted + ' novos | Processados: ' + processed.processed);
-      const supabaseNews = await fetchProcessedNews({ limit: 60 });
-      if (supabaseNews.length > 0) {
-        const converted = supabaseNews.map((n) => ({ id: n.id, title: n.title, summary: n.summary, category: n.category, dateAdded: n.processed_at || new Date().toISOString(), narrative: n.summary || '', intent: n.hidden_intent || '', action: '', truth: n.real_facts || '', relevanceScore: n.score_brasil || 50, nationalRelevance: n.score_brasil || 50, personalImpact: n.impact_rodrigo || '', timeframe: 'DAILY', scenarios: { short: { prediction: '', confidence: 0, impact: '' }, medium: { prediction: '', confidence: 0, impact: '' }, long: { prediction: '', confidence: 0, impact: '' } }, level1Domain: n.level_1_domain, level2Project: n.level_2_project, level3Tag: n.level_3_tag }));
-        setReport(prev => { const merged = [...converted, ...prev.news]; const unique = Array.from(new Map(merged.map(item => [item.id, item])).values()); return { ...prev, news: unique }; });
-        success = true;
+  async function handleAutoPilotRun() {
+    if (isRunningRef.current) return;
+    isRunningRef.current = true;
+    const now = Date.now();
+    if (now - lastRunTimeRef.current < AUTOPILOT_DELAY_MS) {
+      const min = Math.ceil((AUTOPILOT_DELAY_MS - (now - lastRunTimeRef.current)) / 60000);
+      setAutoPilotStatus(`Aguardando ${min}min`);
+      isRunningRef.current = false; return;
+    }
+    setAutoPilotStatus('Executando pipeline...');
+    addLog('INFO', 'AutoPilot', 'Iniciando pipeline RSS → Supabase');
+    try {
+      const { ingested, processed } = await runFullPipeline((msg) => {
+        addLog('INFO', 'Pipeline', msg); setAutoPilotStatus(msg.substring(0, 50));
+      });
+      const news = await fetchProcessedNews(60);
+      if (news.length > 0) {
+        const adapted = news.map(n => ({
+          id: n.id || crypto.randomUUID(), title: n.title, category: n.category || 'Geral',
+          timeframe: 'DAILY', narrative: n.narrative_media || '', intent: n.hidden_intent || '',
+          action: n.impact_rodrigo || '', truth: n.real_facts || '',
+          scenarios: { short: {prediction:'',confidence:0,impact:''}, medium: {prediction:'',confidence:0,impact:''}, long: {prediction:'',confidence:0,impact:''} },
+          relevanceScore: n.score_rodrigo || 0, nationalRelevance: n.score_brasil || 0,
+          personalImpact: n.impact_rodrigo || '', dateAdded: n.processed_at || new Date().toISOString(),
+        }));
+        setReport(prev => ({ ...prev, news: adapted, date: new Date().toISOString() }));
       }
       const stats = await getQueueStats();
       setQueueStats(stats);
-      if (task.type === 'COMMODITIES') {
-             const newCommodities = await fetchCommoditiesUpdate(aiConfig);
-             if (newCommodities && newCommodities.length > 0) {
-                 setReport(prev => { const s = { ...prev, commodities: newCommodities }; saveCurrentState(s); return s; });
-                 success = true;
-             }
-          } else if (task.type === 'NEWS' && task.topic) {
-             const newNews = await fetchNewsBatch(task.topic, aiConfig);
-             if (newNews && newNews.length > 0) {
-                 await persistNewsItems(newNews);
-                 setReport(prev => {
-                     const u = [...newNews, ...prev.news];
-                     const unique = Array.from(new Map(u.map(item => [item.id, item])).values());
-                     return { ...prev, news: unique };
-                 });
-                 success = true;
-             }
-          }
-      } catch(e) { 
-          console.warn("AutoPilot pipeline falhou, tentando fallback Gemini:", task.label, e);
-          success = false; 
-      }
-
-      const nextIndex = (nextAutoTaskIndex + 1) % ROTATION_QUEUE.length;
-      setNextAutoTaskIndex(nextIndex);
       lastRunTimeRef.current = Date.now();
-      
-      if (success) {
-          addLog('SUCCESS', 'AutoPilot', `Dados salvos: ${task.label}`);
-          setAutoPilotStatus(`Próx: ${ROTATION_QUEUE[nextIndex].label}`);
-      } else {
-          setAutoPilotStatus(`Aguardando: ${ROTATION_QUEUE[nextIndex].label}`);
-      }
-      isRunningRef.current = false;
-  }, [nextAutoTaskIndex, addLog, aiConfig, isDatabaseReady]); 
+      setAutoPilotStatus(`✅ ${ingested} ingeridas, ${processed} processadas`);
+      addLog('SUCCESS', 'AutoPilot', `Pipeline: ${ingested} ingeridas, ${processed} processadas`);
+    } catch (err: any) {
+      addLog('ERROR', 'AutoPilot', err.message);
+      setAutoPilotStatus('Erro — próximo ciclo');
+    } finally { isRunningRef.current = false; }
+  } 
 
   useEffect(() => {
       localStorage.setItem('truepress_autoradar', autoRadar.toString());
@@ -453,12 +433,40 @@ function App() {
   }, [autoRadar]);
 
   useEffect(() => {
+    fetchProcessedNews(60).then(news => {
+      if (news.length > 0) {
+        const adapted = news.map(n => ({
+          id: n.id || crypto.randomUUID(),
+          title: n.title,
+          category: n.category || 'Geral',
+          timeframe: 'DAILY',
+          narrative: n.narrative_media || '',
+          intent: n.hidden_intent || '',
+          action: n.impact_rodrigo || '',
+          truth: n.real_facts || '',
+          scenarios: {
+            short: {prediction:'',confidence:0,impact:''},
+            medium: {prediction:'',confidence:0,impact:''},
+            long: {prediction:'',confidence:0,impact:''}
+          },
+          relevanceScore: n.score_rodrigo || 0,
+          nationalRelevance: n.score_brasil || 0,
+          personalImpact: n.impact_rodrigo || '',
+          dateAdded: n.processed_at || new Date().toISOString(),
+        }));
+        setReport(prev => ({ ...prev, news: adapted, date: new Date().toISOString() }));
+      }
+    });
+    getQueueStats().then(setQueueStats);
+  }, []);
+
+  useEffect(() => {
       const heartbeat = setInterval(() => {
           if (!autoRadar) { setAutoPilotStatus('Inativo'); return; }
-          if (isDatabaseReady && Date.now() - lastRunTimeRef.current >= AUTOPILOT_DELAY_MS) executeAutoPilotStep();
+          if (isDatabaseReady && Date.now() - lastRunTimeRef.current >= AUTOPILOT_DELAY_MS) handleAutoPilotRun();
       }, HEARTBEAT_MS);
       return () => clearInterval(heartbeat);
-  }, [autoRadar, executeAutoPilotStep, isDatabaseReady]);
+  }, [autoRadar, isDatabaseReady]);
 
   if (!authorized) return <AuthGate onSuccess={handleLoginSuccess} />;
 
