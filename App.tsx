@@ -8,6 +8,8 @@ import { fetchNewsBatch, fetchInvestigationBatch, fetchCommoditiesUpdate, genera
 import { saveReport, getAllNews, persistNewsItems, loadCurrentState, saveCurrentState, saveSnapshot, getEmbeddingCount } from './db';
 import { IntelligenceReport, NewsAnalysis, SystemLogEntry, AIConfig, RagIndexStatus } from './types';
 import { indexNewsBatch, semanticSearch, pruneOrphanEmbeddings } from './services/ragService';
+import { runFullPipeline, fetchProcessedNews, getQueueStats } from './services/newsQueue';
+import { RSS_FEEDS } from './services/rssFeeds';
 
 const ROTATION_QUEUE = [
     { type: 'COMMODITIES', label: 'Cotações Físicas (Atualização)' },
@@ -74,6 +76,7 @@ function App() {
   const isRunningRef = useRef<boolean>(false);
   const [systemLogs, setSystemLogs] = useState<SystemLogEntry[]>([]);
   const [isSystemMonitorOpen, setIsSystemMonitorOpen] = useState(false);
+  const [queueStats, setQueueStats] = useState<{ pending: number; processing: number; done: number; error: number } | null>(null);
 
   const addLog = useCallback((level: 'INFO'|'WARN'|'ERROR'|'SUCCESS', module: string, message: string) => {
       const entry: SystemLogEntry = { timestamp: new Date().toLocaleTimeString(), level, module, message };
@@ -392,7 +395,19 @@ function App() {
       
       let success = false;
       try {
-          if (task.type === 'COMMODITIES') {
+          // Pipeline v3.7.0 - RSS to raw_news to Gemini to processed_news
+      const feedUrls = RSS_FEEDS.map(f => f.url);
+      const { ingested, processed } = await runFullPipeline(feedUrls);
+      console.log('[Piloto] Ingeridos: ' + ingested.inserted + ' novos | Processados: ' + processed.processed);
+      const supabaseNews = await fetchProcessedNews({ limit: 60 });
+      if (supabaseNews.length > 0) {
+        const converted = supabaseNews.map((n) => ({ id: n.id, title: n.title, summary: n.summary, category: n.category, dateAdded: n.processed_at || new Date().toISOString(), narrative: n.summary || '', intent: n.hidden_intent || '', action: '', truth: n.real_facts || '', relevanceScore: n.score_brasil || 50, nationalRelevance: n.score_brasil || 50, personalImpact: n.impact_rodrigo || '', timeframe: 'DAILY', scenarios: { short: { prediction: '', confidence: 0, impact: '' }, medium: { prediction: '', confidence: 0, impact: '' }, long: { prediction: '', confidence: 0, impact: '' } }, level1Domain: n.level_1_domain, level2Project: n.level_2_project, level3Tag: n.level_3_tag }));
+        setReport(prev => { const merged = [...converted, ...prev.news]; const unique = Array.from(new Map(merged.map(item => [item.id, item])).values()); return { ...prev, news: unique }; });
+        success = true;
+      }
+      const stats = await getQueueStats();
+      setQueueStats(stats);
+      if (task.type === 'COMMODITIES') {
              const newCommodities = await fetchCommoditiesUpdate(aiConfig);
              if (newCommodities && newCommodities.length > 0) {
                  setReport(prev => { const s = { ...prev, commodities: newCommodities }; saveCurrentState(s); return s; });
@@ -411,7 +426,7 @@ function App() {
              }
           }
       } catch(e) { 
-          console.warn("AutoPilot falhou na tarefa", task.label, e);
+          console.warn("AutoPilot pipeline falhou, tentando fallback Gemini:", task.label, e);
           success = false; 
       }
 
@@ -474,6 +489,7 @@ function App() {
         ragStatus={ragStatus}
         onRagIndex={() => handleRagIndex()}
         onRagSearch={handleRagSearch}
+        queueStats={queueStats}
       />
     </div>
   );
