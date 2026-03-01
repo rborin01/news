@@ -115,7 +115,7 @@ function App() {
         euro: parseFloat(d?.EURBRL?.bid || 0).toFixed(2),
         bitcoin: parseFloat(d?.BTCBRL?.bid || 0).toLocaleString('pt-BR'),
         lastUpdate: new Date().toLocaleTimeString('pt-BR'),
-      })).catch(() => {});
+      }).catch((err: Error) => { console.error('[Cotacoes] Erro ao buscar cotacoes:', err.message); });
     load();
     const t = setInterval(load, 300000);
     return () => clearInterval(t);
@@ -386,7 +386,7 @@ function App() {
         setAutoPilotStatus(msg.substring(0, 50));
       });
       const msg = result
-        ? `✅ ${result.ingested ?? 0} ingeridas, ${result.processed ?? 0} processadas`
+        ? `✅ ${result?.ingested ?? 0} ingeridas, ${result?.processed ?? 0} processadas`
         : '✅ Concluído';
       setAutoPilotStatus(msg);
       const fresh = await fetchProcessedNews(100);
