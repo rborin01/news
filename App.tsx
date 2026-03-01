@@ -9,6 +9,7 @@ import { IntelligenceReport, NewsAnalysis, SystemLogEntry, AIConfig, RagIndexSta
 import { indexNewsBatch, semanticSearch, pruneOrphanEmbeddings } from './services/ragService';
 import { runFullPipeline, processQueue, fetchProcessedNews, getQueueStats, QueueStats } from './services/newsQueue';
 import { RSS_FEEDS } from './services/rssFeeds';
+import VoiceChat from './src/pages/VoiceChat';
 
 const ROTATION_QUEUE = [
   { type: 'COMMODITIES', label: 'Cotações Físicas (Atualização)' },
@@ -56,6 +57,10 @@ function adaptNewsFromSupabase(items: any[]): NewsAnalysis[] {
 }
 
 function App() {
+  if (typeof window !== 'undefined' && window.location.pathname === '/chat') {
+    return <VoiceChat />;
+  }
+
   const [authorized, setAuthorized] = useState(false);
   const [isDatabaseReady, setIsDatabaseReady] = useState(false);
   const [report, setReport] = useState<IntelligenceReport>({
