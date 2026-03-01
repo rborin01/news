@@ -1,7 +1,7 @@
 // supabase/functions/gemini-proxy/index.ts
 // Edge Function: Proxy seguro para todas as chamadas Gemini API
 // A chave GEMINI_API_KEY nunca chega ao browser
-// DO-178C Level A | True Press v3.6.1 - fix: add analyze_news action
+// DO-178C Level A | True Press v3.6.2 - fix: encoding UTF-8 nos titulos RSS
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
@@ -57,7 +57,9 @@ serve(async (req: Request) => {
         // Retorna campos para processed_news
         // =============================================
         if (action === 'analyze_news') {
-                  const { title, content_raw } = body
+                  const { title: rawTitle, content_raw } = body
+                  // fix: encoding UTF-8 - normalize NFC
+                  const title = rawTitle ? rawTitle.normalize('NFC') : rawTitle
                   const model = 'gemini-2.0-flash'
                   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`
 
@@ -71,7 +73,7 @@ serve(async (req: Request) => {
                           "hidden_intent": "qual e a intencao real por tras desta noticia, quem se beneficia, qual agenda esta sendo promovida (minimo 2 frases)",
                             "real_facts": "quais sao os fatos verificaveis separados da narrativa, o que realmente aconteceu sem interpretacao editorial (minimo 2 frases)",
                               "impact_rodrigo": "como esta noticia impacta especificamente um fazendeiro/investidor do Mato Grosso do Sul com propriedades no litoral de SC, qual acao tomar (minimo 2 frases)",
-                                "category": "uma categoria: Agro|Politica|Mercado|Jurídico|Geopolitica|Segurança|Economia|Tecnologia|Geral",
+                                "category": "uma categoria: Agro|Politica|Mercado|JurÃ­dico|Geopolitica|SeguranÃ§a|Economia|Tecnologia|Geral",
                                   "level_1_domain": "World|Brazil|AgriMarket|FinMarket|Law",
                                     "level_2_project": "TruePress",
                                       "level_3_tag": "tag relevante",
