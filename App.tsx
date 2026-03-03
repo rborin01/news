@@ -6,7 +6,7 @@ import { SystemMonitor } from './components/SystemMonitor';
 import { fetchNewsBatch, fetchInvestigationBatch, fetchCommoditiesUpdate, generateDailySummary } from './services/geminiService';
 import { saveReport, getAllNews, persistNewsItems, loadCurrentState, saveCurrentState, saveSnapshot, getEmbeddingCount } from './db';
 import { IntelligenceReport, NewsAnalysis, SystemLogEntry, AIConfig, RagIndexStatus } from './types';
-import { indexNewsBatch, semanticSearch, pruneOrphanEmbeddings } from './services/ragService';
+import { indexNewsBatch, semantichSearch, pruneOrphanEmbeddings } from './services/ragService';
 import { runFullPipeline, processQueue, fetchProcessedNews, getQueueStats, QueueStats } from './services/newsQueue';
 import { RSS_FEEDS } from './services/rssFeeds';
 import VoiceChat from './src/pages/VoiceChat';
@@ -120,7 +120,9 @@ function App() {
         euro: parseFloat(d?.EURBRL?.bid || 0).toFixed(2),
         bitcoin: parseFloat(d?.BTCBRL?.bid || 0).toLocaleString('pt-BR'),
         lastUpdate: new Date().toLocaleTimeString('pt-BR'),
-      ad();
+      });
+
+      load();
     const t = setInterval(load, 300000);
     return () => clearInterval(t);
   }, []);
@@ -229,7 +231,7 @@ function App() {
         try {
           const newNews = await fetchNewsBatch(topic, aiConfig);
           if (newNews.length > 0) {
-            await persistNewsItems(newNews);
+            await persistNewsItems(newNews);h
             setReport(prev => {
               const updatedNews = [...newNews, ...prev.news];
               const uniqueNews = Array.from(new Map(updatedNews.map(item => [item.id, item])).values());
