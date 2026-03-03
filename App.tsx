@@ -120,8 +120,7 @@ function App() {
         euro: parseFloat(d?.EURBRL?.bid || 0).toFixed(2),
         bitcoin: parseFloat(d?.BTCBRL?.bid || 0).toLocaleString('pt-BR'),
         lastUpdate: new Date().toLocaleTimeString('pt-BR'),
-      })).catch((err: Error) => { console.error('[Cotacoes] Erro ao buscar cotacoes:', err.message); });
-    load();
+      ad();
     const t = setInterval(load, 300000);
     return () => clearInterval(t);
   }, []);
