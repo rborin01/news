@@ -1,289 +1,249 @@
-// supabase/functions/gemini-proxy/index.ts
-// Edge Function: Proxy seguro para todas as chamadas Gemini API
-// A chave GEMINI_API_KEY nunca chega ao browser
-// DO-178C Level A | True Press v3.6.2 - fix: encoding UTF-8 nos titulos RSS
+// ============================================================================
+// TRUE PRESS — Edge Function: gemini-proxy v3.9.0
+// Análise: Groq (llama-3.1-8b-instant) — grátis, 14.400/dia, ultra rápido
+// Embedding: Gemini embedding-001 (fallback: sem embedding)
+// ============================================================================
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') ?? ''
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? ''
-const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+const GROQ_API_KEY         = Deno.env.get("GROQ_API_KEY") ?? "";
+const GEMINI_API_KEY       = Deno.env.get("GEMINI_API_KEY") ?? "";
+const SUPABASE_URL         = Deno.env.get("SUPABASE_URL") ?? "";
+const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
-const CORS_HEADERS = {
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+const GROQ_MODEL  = "llama-3.1-8b-instant";
+const EMBED_MODEL = "gemini-embedding-001";
+const RATE_DELAY_MS = 500; // Groq é rápido — 500ms entre chamadas suficiente
+
+const corsHeaders = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+// ── Parse JSON robusto ───────────────────────────────────────────────────────
+function parseJSON(raw: string): any {
+        const clean = raw.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
+        try { return JSON.parse(clean); } catch (_) {}
+        const m = clean.match(/\{[\s\S]*\}/);
+        if (m) { try { return JSON.parse(m[0]); } catch (_) {} }
+        throw new Error(`JSON inválido: ${raw.substring(0, 200)}`);
 }
 
-serve(async (req: Request) => {
-      // Handle CORS preflight
-        if (req.method === 'OPTIONS') {
-                return new Response('ok', { headers: CORS_HEADERS })
-        }
+// ── Groq — análise de texto ──────────────────────────────────────────────────
+async function callGroq(prompt: string): Promise<{ text: string; model: string }> {
+        if (!GROQ_API_KEY) throw new Error("GROQ_API_KEY não configurada");
+
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${GROQ_API_KEY}`,
+            },
+            body: JSON.stringify({
+                        model: GROQ_MODEL,
+                        messages: [{ role: "user", content: prompt }],
+                        temperature: 0.3,
+                        max_tokens: 1000,
+            }),
+  });
+
+  if (!res.ok) {
+            const b = await res.text();
+            throw new Error(`GROQ_HTTP_${res.status}:${b.substring(0, 200)}`);
+  }
+
+  const data = await res.json();
+        return { text: data.choices?.[0]?.message?.content ?? "", model: `groq-${GROQ_MODEL}` };
+}
+
+// ── Gemini — apenas embedding ────────────────────────────────────────────────
+async function generateEmbedding(text: string): Promise<number[]> {
+        if (!GEMINI_API_KEY) return [];
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${EMBED_MODEL}:embedContent?key=${GEMINI_API_KEY}`;
+        const res = await fetch(url, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ model: `models/${EMBED_MODEL}`, content: { parts: [{ text: text.substring(0, 2000) }] } }),
+        });
+
+  if (!res.ok) return []; // embedding falha silenciosamente
+  const data = await res.json();
+        return data.embedding?.values ?? [];
+}
+
+function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
+
+      // ── Análise de notícia via Groq ──────────────────────────────────────────────
+async function analyzeNews(title: string, contentRaw: string): Promise<any> {
+        const prompt = `Você é analista de inteligência privada brasileiro. Analise a notícia abaixo.
+
+        RETORNE APENAS JSON VÁLIDO, sem markdown, sem texto antes ou depois.
+
+        {"title":"título limpo max 120 chars","summary":"resumo em 2 frases objetivas","narrative_media":"narrativa da mídia mainstream","hidden_intent":"agenda oculta por trás da notícia","real_facts":"apenas fatos verificáveis sem spin","impact_rodrigo":"impacto para produtor rural e investidor brasileiro","category":"Agronegócio|Política|Mercado Financeiro|Geopolítica|Tecnologia|Saúde|Segurança|Infraestrutura|Energia|Outros","level_1_domain":"Finance_Trading|Politics_Gov|Agro_Commodities|Tech_AI|Health_Bio|Security_Legal|Infrastructure|Energy|International|General","level_2_project":"QuantumCore|NeuroGrid|TruePress|Personal|AERON|General","level_3_tag":"snake_case ex: soja_precos","score_rodrigo":0,"score_brasil":0}
+
+        NOTÍCIA:
+
+        Título: ${title}
+
+        Conteúdo: ${(contentRaw ?? "").substring(0, 1500)}`;
+
+  const { text, model } = await callGroq(prompt);
+        const parsed = parseJSON(text);
+        return { ...parsed, model_used: model };
+}
+
+// ── Processar fila ───────────────────────────────────────────────────────────
+async function processQueue(batchSize = 5): Promise<any> {
+        const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+
+  const { data: pending, error } = await supabase
+          .from("raw_news")
+          .select("id,url,source,title,content_raw,retry_count")
+          .eq("status", "pending")
+          .order("scraped_at", { ascending: true })
+          .limit(batchSize);
+
+  if (error) throw new Error(`DB: ${error.message}`);
+        if (!pending || pending.length === 0) return { processed: 0, message: "Fila vazia" };
+
+  const results = [];
+
+  for (let i = 0; i < pending.length; i++) {
+            const item = pending[i];
+
+          try {
+                      await supabase.from("raw_news").update({ status: "processing" }).eq("id", item.id);
+
+              const analysis = await analyzeNews(item.title ?? "Sem título", item.content_raw ?? "");
+
+              const safe = {
+                            title:           analysis.title           || item.title || "Sem título",
+                            summary:         analysis.summary          || "Resumo indisponível",
+                            narrative_media: analysis.narrative_media  || "",
+                            hidden_intent:   analysis.hidden_intent    || "",
+                            real_facts:      analysis.real_facts       || "",
+                            impact_rodrigo:  analysis.impact_rodrigo   || "",
+                            category:        analysis.category         || "Outros",
+                            level_1_domain:  analysis.level_1_domain   || "General",
+                            level_2_project: analysis.level_2_project  || "TruePress",
+                            level_3_tag:     analysis.level_3_tag      || "geral",
+                            score_rodrigo:   Number(analysis.score_rodrigo) || 50,
+                            score_brasil:    Number(analysis.score_brasil)  || 50,
+                            model_used:      analysis.model_used       || "groq",
+              };
+
+              // Embedding opcional — não bloqueia se falhar
+              let embedding: number[] | null = null;
+                      try { embedding = await generateEmbedding(`${safe.title} ${safe.summary}`); } catch (_) {}
+
+              const { error: insertErr } = await supabase.from("processed_news").insert({
+                            raw_id: item.id, title: safe.title, summary: safe.summary,
+                            narrative_media: safe.narrative_media, hidden_intent: safe.hidden_intent,
+                            real_facts: safe.real_facts, impact_rodrigo: safe.impact_rodrigo,
+                            category: safe.category, level_1_domain: safe.level_1_domain,
+                            level_2_project: safe.level_2_project, level_3_tag: safe.level_3_tag,
+                            score_rodrigo: safe.score_rodrigo, score_brasil: safe.score_brasil,
+                            embedding, source_app: "truepress", source_url: item.url,
+              });
+
+              if (insertErr) throw new Error(`Insert: ${insertErr.message}`);
+
+              await supabase.from("raw_news").update({ status: "done" }).eq("id", item.id);
+                      results.push({ id: item.id, status: "done", title: safe.title, model: safe.model_used });
+
+          } catch (err: any) {
+                      const msg = (err?.message ?? String(err)).substring(0, 500);
+                      await supabase.from("raw_news").update({
+                                    status: "error", error_msg: msg,
+                                    retry_count: (item.retry_count ?? 0) + 1,
+                      }).eq("id", item.id);
+                      results.push({ id: item.id, status: "error", error: msg });
+          }
+
+          if (i < pending.length - 1) await sleep(RATE_DELAY_MS);
+  }
+
+  return { processed: results.length, results };
+}
+
+// ── Handler principal ────────────────────────────────────────────────────────
+serve(async (req) => {
+        if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
         try {
-                const body = await req.json()
-                const { action, payload } = body
+                  const body = await req.json();
+                  const { action } = body;
 
-        // Criar cliente Supabase com service_role para escrita
-        const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+          const json = (data: any, status = 200) =>
+                      new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
-        // =============================================
-        // ACAO: generate - Gerar analise de noticia
-        // Modelo: gemini-2.0-flash (rapido, custo baixo)
-        // =============================================
-        if (action === 'generate') {
-                  const { model = 'gemini-2.0-flash', contents, systemInstruction } = payload
-                  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`
-                  const geminiBody: Record<string, unknown> = { contents }
-                  if (systemInstruction) {
-                              geminiBody.systemInstruction = { parts: [{ text: systemInstruction }] }
-                  }
-                  const resp = await fetch(url, {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify(geminiBody),
-                  })
-                  const data = await resp.json()
-                  return new Response(JSON.stringify(data), {
-                              headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-                              status: resp.status,
-                  })
-        }
+          if (action === "generate") {
+                      const { text, model } = await callGroq(body.prompt);
+                      return json({ text, model_used: model });
+          }
 
-        // =============================================
-        // ACAO: analyze_news - Analisar noticia com IA
-        // Retorna campos para processed_news
-        // =============================================
-        if (action === 'analyze_news') {
-                  const { title: rawTitle, content_raw } = body
-                  // fix: encoding UTF-8 - normalize NFC
-                  const title = rawTitle ? rawTitle.normalize('NFC') : rawTitle
-                  const model = 'gemini-2.0-flash'
-                  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${GEMINI_API_KEY}`
+          if (action === "embed") {
+                      const embedding = await generateEmbedding(body.text);
+                      return json({ embedding });
+          }
 
-                  const prompt = `Voce e um analista de inteligencia critica especializado em midia brasileira.
-                  Analise a noticia abaixo e retorne um JSON valido com EXATAMENTE estes campos preenchidos com texto real e substancial (nao deixe vazio):
+          if (action === "analyze_news") {
+                      const a = await analyzeNews(body.title ?? "", body.content_raw ?? "");
+                      return json(a);
+          }
 
-                  {
-                    "title": "titulo limpo e claro",
-                      "summary": "resumo objetivo em 2-3 frases",
-                        "narrative_media": "como a midia esta enquadrando esta noticia, qual narrativa ela quer criar, quais palavras escolhe e por que (minimo 2 frases)",
-                          "hidden_intent": "qual e a intencao real por tras desta noticia, quem se beneficia, qual agenda esta sendo promovida (minimo 2 frases)",
-                            "real_facts": "quais sao os fatos verificaveis separados da narrativa, o que realmente aconteceu sem interpretacao editorial (minimo 2 frases)",
-                              "impact_rodrigo": "como esta noticia impacta especificamente um fazendeiro/investidor do Mato Grosso do Sul com propriedades no litoral de SC, qual acao tomar (minimo 2 frases)",
-                                "category": "uma categoria: Agro|Politica|Mercado|JurÃ­dico|Geopolitica|SeguranÃ§a|Economia|Tecnologia|Geral",
-                                  "level_1_domain": "World|Brazil|AgriMarket|FinMarket|Law",
-                                    "level_2_project": "TruePress",
-                                      "level_3_tag": "tag relevante",
-                                        "score_rodrigo": numero de 0 a 100 indicando relevancia pessoal para Rodrigo,
-                                          "score_brasil": numero de 0 a 100 indicando relevancia nacional
-                                          }
+          if (action === "process_queue") {
+                      const r = await processQueue(body.batch_size ?? 5);
+                      return json(r);
+          }
 
-                                          NOTICIA:
-                                          Titulo: ${title}
-                                          Conteudo: ${content_raw || title}
+          if (action === "reset_errors") {
+                      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+                      const { data, error } = await supabase.from("raw_news")
+                        .update({ status: "pending", error_msg: null })
+                        .eq("status", "error").lt("retry_count", body.max_retry ?? 3).select("id");
+                      if (error) throw new Error(error.message);
+                      return json({ reset: data?.length ?? 0 });
+          }
 
-                                          RETORNE APENAS O JSON, SEM MARKDOWN, SEM EXPLICACOES.`
-
-                  const resp = await fetch(url, {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                            contents: [{ parts: [{ text: prompt }] }],
-                                            generationConfig: {
-                                                            temperature: 0.3,
-                                                            maxOutputTokens: 1024,
-                                            }
-                              }),
-                  })
-
-                  const data = await resp.json()
-
-                  if (!resp.ok) {
-                              return new Response(JSON.stringify({ error: data }), {
-                                            headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-                                            status: resp.status,
-                              })
-                  }
-
-                  const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text ?? ''
-
-                  // Extrair JSON da resposta
-                  let analysis: Record<string, unknown> = {}
-                            try {
-                                        const jsonMatch = rawText.match(/\{[\s\S]*\}/)
-                                        if (jsonMatch) {
-                                                      analysis = JSON.parse(jsonMatch[0])
-                                        }
-                            } catch {
-                                        // fallback: retornar o texto bruto como summary
-                    analysis = {
-                                  title,
-                                  summary: rawText.substring(0, 500),
-                                  narrative_media: rawText.substring(0, 300),
-                                  hidden_intent: '',
-                                  real_facts: '',
-                                  impact_rodrigo: '',
-                                  category: 'Geral',
-                                  level_1_domain: 'World',
-                                  level_2_project: 'TruePress',
-                                  level_3_tag: 'geral',
-                                  score_rodrigo: 50,
-                                  score_brasil: 50,
-                    }
+          if (action === "ingest_rss") {
+                      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+                      let inserted = 0, duplicates = 0, errors = 0;
+                      for (const item of (body.items ?? [])) {
+                                    if (!item.url || !item.title) { errors++; continue; }
+                                    const { error } = await supabase.from("raw_news").insert({
+                                                    url: item.url.substring(0, 2000), source: item.source ?? "unknown",
+                                                    title: item.title.substring(0, 500),
+                                                    content_raw: (item.content_raw ?? "").substring(0, 5000), status: "pending",
+                                    });
+                                    if (error?.code === "23505") duplicates++;
+                                    else if (error) errors++;
+                                    else inserted++;
+                      }
+                      return json({ inserted, duplicates, errors });
                             }
 
-                  return new Response(JSON.stringify(analysis), {
-                              headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-                  })
+          if (action === "health") {
+                      let groqOk = false;
+                      try {
+                                    const r = await fetch("https://api.groq.com/openai/v1/models", {
+                                                    headers: { "Authorization": `Bearer ${GROQ_API_KEY}` },
+                                                    signal: AbortSignal.timeout(5000),
+                                    });
+                                    groqOk = r.ok;
+                      } catch (_) {}
+                      return json({ groq: groqOk, groq_model: GROQ_MODEL, gemini_embed: !!GEMINI_API_KEY });
+          }
+
+          return json({ error: `Unknown action: ${action}` }, 400);
+
+        } catch (err: any) {
+    const msg = err?.message ?? String(err);
+                  console.error("[gemini-proxy] Error:", msg);
+                  return new Response(JSON.stringify({ error: msg }), {
+                              status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+                  });
         }
-
-        // =============================================
-        // ACAO: embed - Gerar embedding vetorial
-        // Modelo: gemini-embedding-001 (768 dims, v1beta)
-        // =============================================
-        if (action === 'embed') {
-                  const { text, newsId, level1 = 'news', level2 = 'truepress', level3 = 'general' } = payload
-                  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${GEMINI_API_KEY}`
-                  const resp = await fetch(url, {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                            model: 'models/gemini-embedding-001',
-                                            content: { parts: [{ text }] },
-                              }),
-                  })
-                  const data = await resp.json()
-
-                  if (!resp.ok) {
-                              return new Response(JSON.stringify({ error: data }), {
-                                            headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-                                            status: resp.status,
-                              })
-                  }
-
-                  const embedding = data.embedding?.values ?? data.embeddings?.[0]?.values
-                  if (!embedding) {
-                              return new Response(JSON.stringify({ error: 'No embedding returned' }), {
-                                            headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-                                            status: 500,
-                              })
-                  }
-
-                  // Salvar embedding no Supabase com hierarquia de 3 niveis
-                  if (newsId) {
-                              await supabase.from('embeddings').upsert({
-                                            news_id: newsId,
-                                            content_chunk: text,
-                                            embedding: `[${embedding.join(',')}]`,
-                                            level_1_domain: level1,
-                                            level_2_project: level2,
-                                            level_3_tag: level3,
-                              })
-                  }
-
-                  return new Response(JSON.stringify({ embedding }), {
-                              headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-                  })
-        }
-
-        // =============================================
-        // ACAO: save-news - Salvar noticia no Supabase
-        // Usa service_role para bypass do RLS
-        // =============================================
-        if (action === 'save-news') {
-                  const { news } = payload
-                  const { error } = await supabase.from('news').upsert(
-                              news.map((item: Record<string, unknown>) => ({
-                                            id: item.id,
-                                            title: item.title,
-                                            source: item.source,
-                                            url: item.url,
-                                            published_at: item.publishedAt,
-                                            category: item.category,
-                                            summary: item.summary,
-                                            content: item.content,
-                                            narrative: item.narrative,
-                                            intent: item.intent,
-                                            truth: item.truth,
-                                            action: item.action,
-                                            rodrigo_score: item.rodrigoScore ?? 0,
-                                            brasil_score: item.brasilScore ?? 0,
-                                            is_critical: item.isCritical ?? false,
-                                            tags: item.tags ?? [],
-                                            raw_data: item,
-                                            updated_at: new Date().toISOString(),
-                              })),
-                      { onConflict: 'id' }
-                            )
-                  if (error) {
-                              return new Response(JSON.stringify({ error: error.message }), {
-                                            headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-                                            status: 500,
-                              })
-                  }
-                  return new Response(JSON.stringify({ ok: true, count: news.length }), {
-                              headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-                  })
-        }
-
-        // =============================================
-        // ACAO: semantic-search - Busca vetorial hierarquica
-        // Usa filtros de 3 niveis antes de buscar (anti-colapso)
-        // =============================================
-        if (action === 'semantic-search') {
-                  const { queryText, matchCount = 5, domain, project, tag } = payload
-
-                  // 1. Gerar embedding da query
-                  const embedUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:embedContent?key=${GEMINI_API_KEY}`
-                  const embedResp = await fetch(embedUrl, {
-                              method: 'POST',
-                              headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({
-                                            model: 'models/gemini-embedding-001',
-                                            content: { parts: [{ text: queryText }] },
-                              }),
-                  })
-                  const embedData = await embedResp.json()
-                  const queryEmbedding = embedData.embedding?.values
-                  if (!queryEmbedding) {
-                              return new Response(JSON.stringify({ error: 'Failed to embed query' }), {
-                                            headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-                                            status: 500,
-                              })
-                  }
-
-                  // 2. Busca vetorial filtrada hierarquicamente
-                  const { data: results, error } = await supabase.rpc('match_embeddings_hierarchical', {
-                              query_embedding: `[${queryEmbedding.join(',')}]`,
-                              match_count: matchCount,
-                              filter_domain: domain ?? null,
-                              filter_project: project ?? null,
-                              filter_tag: tag ?? null,
-                  })
-                  if (error) {
-                              return new Response(JSON.stringify({ error: error.message }), {
-                                            headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-                                            status: 500,
-                              })
-                  }
-
-                  return new Response(JSON.stringify({ results }), {
-                              headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-                  })
-        }
-
-        return new Response(JSON.stringify({ error: `Unknown action: ${action}` }), {
-                  headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-                  status: 400,
-        })
-
-        } catch (err) {
-                return new Response(JSON.stringify({ error: String(err) }), {
-                          headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-                          status: 500,
-                })
-        }
-})
+});
