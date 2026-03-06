@@ -1,0 +1,63 @@
+name: True Press — Coleta e Processamento Horário
+
+on:
+
+  schedule:
+
+    - cron: '0 * * * *'   # todo hora, ex: 00:00, 01:00 ... 23:00 UTC
+
+  workflow_dispatch:        # permite rodar manualmente pelo GitHub
+
+jobs:
+
+  process:
+
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 10
+
+    steps:
+
+      - name: Processar fila de notícias via Groq
+
+        run: |
+
+          echo "Iniciando processamento — $(date)"
+
+          
+
+          # Processa em 3 lotes de 20 = até 60 notícias por hora
+
+          for i in 1 2 3; do
+
+            echo "--- Lote $i ---"
+
+            RESULT=$(curl -s -X POST \
+
+              "https://sfnvctljxidzueoutnxv.supabase.co/functions/v1/gemini-proxy" \
+
+              -H "Content-Type: application/json" \
+
+              -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNmbnZjdGxqeGlkenVlb3V0bnh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMTI5OTcsImV4cCI6MjA4NzY4ODk5N30.Yg65dHXyZqzBWNHM1nW-YfBx7FWFpWyoFvM_Obj-wQI" \
+
+              -d '{"action":"process_queue","batch_size":20}')
+
+            echo "$RESULT"
+
+            PROCESSED=$(echo "$RESULT" | grep -o '"processed":[0-9]*' | grep -o '[0-9]*')
+
+            if [ "$PROCESSED" = "0" ] || [ -z "$PROCESSED" ]; then
+
+              echo "Fila vazia — encerrando"
+
+              break
+
+            fi
+
+            sleep 5
+
+          done
+
+          
+
+          echo "Concluído — $(date)"
