@@ -4,60 +4,64 @@ on:
 
   schedule:
 
-    - cron: '0 * * * *'   # todo hora, ex: 00:00, 01:00 ... 23:00 UTC
+      - cron: '0 * * * *'
 
-  workflow_dispatch:        # permite rodar manualmente pelo GitHub
+        workflow_dispatch:
 
-jobs:
+        jobs:
 
-  process:
+          collect-and-process:
 
-    runs-on: ubuntu-latest
+              runs-on: ubuntu-latest
 
-    timeout-minutes: 10
+                  timeout-minutes: 10
 
-    steps:
+                      steps:
 
-      - name: Processar fila de notícias via Groq
+                            - name: Coletar RSS + Processar via Groq
 
-        run: |
+                                    run: |
 
-          echo "Iniciando processamento — $(date)"
+                                              BASE="https://sfnvctljxidzueoutnxv.supabase.co/functions/v1/gemini-proxy"
 
-          
+                                                        AUTH="Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNmbnZjdGxqeGlkenVlb3V0bnh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMTI5OTcsImV4cCI6MjA4NzY4ODk5N30.Yg65dHXyZqzBWNHM1nW-YfBx7FWFpWyoFvM_Obj-wQI"
 
-          # Processa em 3 lotes de 20 = até 60 notícias por hora
+                                                                  echo "=== COLETA RSS $(date) ==="
 
-          for i in 1 2 3; do
+                                                                            COLLECT=$(curl -s -X POST "$BASE" \
 
-            echo "--- Lote $i ---"
+                                                                                        -H "Content-Type: application/json" \
 
-            RESULT=$(curl -s -X POST \
-
-              "https://sfnvctljxidzueoutnxv.supabase.co/functions/v1/gemini-proxy" \
-
-              -H "Content-Type: application/json" \
-
-              -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNmbnZjdGxqeGlkenVlb3V0bnh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMTI5OTcsImV4cCI6MjA4NzY4ODk5N30.Yg65dHXyZqzBWNHM1nW-YfBx7FWFpWyoFvM_Obj-wQI" \
-
-              -d '{"action":"process_queue","batch_size":20}')
-
-            echo "$RESULT"
-
-            PROCESSED=$(echo "$RESULT" | grep -o '"processed":[0-9]*' | grep -o '[0-9]*')
-
-            if [ "$PROCESSED" = "0" ] || [ -z "$PROCESSED" ]; then
-
-              echo "Fila vazia — encerrando"
-
-              break
-
-            fi
-
-            sleep 5
-
-          done
-
-          
-
-          echo "Concluído — $(date)"
+                                                                                                    -H "Authorization: $AUTH" \
+                                                                                                    
+                                                                                                                -d '{"action":"collect_rss","max_priority":2}')
+                                                                                                                
+                                                                                                                          echo "$COLLECT"
+                                                                                                                          
+                                                                                                                                    sleep 5
+                                                                                                                                    
+                                                                                                                                              echo "=== PROCESSAMENTO ==="
+                                                                                                                                              
+                                                                                                                                                        for i in 1 2 3; do
+                                                                                                                                                        
+                                                                                                                                                                    echo "Lote $i"
+                                                                                                                                                                    
+                                                                                                                                                                                RESULT=$(curl -s -X POST "$BASE" \
+                                                                                                                                                                                
+                                                                                                                                                                                              -H "Content-Type: application/json" \
+                                                                                                                                                                                              
+                                                                                                                                                                                                            -H "Authorization: $AUTH" \
+                                                                                                                                                                                                            
+                                                                                                                                                                                                                          -d '{"action":"process_queue","batch_size":20}')
+                                                                                                                                                                                                                          
+                                                                                                                                                                                                                                      echo "$RESULT"
+                                                                                                                                                                                                                                      
+                                                                                                                                                                                                                                                  PROCESSED=$(echo "$RESULT" | grep -o '"processed":[0-9]*' | grep -o '[0-9]*')
+                                                                                                                                                                                                                                                  
+                                                                                                                                                                                                                                                              [ "$PROCESSED" = "0" ] || [ -z "$PROCESSED" ] && break
+                                                                                                                                                                                                                                                              
+                                                                                                                                                                                                                                                                          sleep 5
+                                                                                                                                                                                                                                                                          
+                                                                                                                                                                                                                                                                                    done
+                                                                                                                                                                                                                                                                                    
+                                                                                                                                                                                                                                                                                              echo "=== CONCLUÍDO $(date) ==="
