@@ -225,6 +225,37 @@ serve(async (req) => {
                       return json({ inserted, duplicates, errors });
                             }
 
+          if (action === "generate_article") {
+                      const { topic, research_context } = body;
+                      if (!topic) return json({ error: "topic required" }, 400);
+
+                      const prompt = `Você é um jornalista investigativo brasileiro de alto nível. Escreva um artigo jornalístico original sobre o tema abaixo.
+
+RETORNE APENAS JSON VÁLIDO, sem markdown.
+
+{"headline":"título jornalístico impactante max 120 chars","lede":"primeiro parágrafo (lead) em 2-3 frases que respondem quem/o quê/quando/onde/por quê","body":"corpo do artigo em 4-6 parágrafos com fatos, dados e contexto. Use linguagem clara e direta.","sources":["fonte1","fonte2"],"category":"Agronegócio|Política|Mercado Financeiro|Geopolítica|Tecnologia|Jurídico|Outros"}
+
+TEMA: ${topic}
+CONTEXTO: ${(research_context ?? "").substring(0, 1000)}`;
+
+                      const { text, model } = await callGroq(prompt);
+                      const parsed = parseJSON(text);
+
+                      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+                      const { data: inserted, error: insertErr } = await supabase.from("own_articles").insert({
+                            topic,
+                            headline: parsed.headline || topic,
+                            lede: parsed.lede || "",
+                            body: parsed.body || "",
+                            sources: parsed.sources || [],
+                            category: parsed.category || "Outros",
+                            author_ai: `groq-${GROQ_MODEL}`,
+                      }).select().single();
+
+                      if (insertErr) throw new Error(insertErr.message);
+                      return json(inserted);
+          }
+
           if (action === "health") {
                       let groqOk = false;
                       try {
