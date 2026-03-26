@@ -127,7 +127,7 @@ export async function getQueueStats(): Promise<QueueStats> {
 }
 
 export async function reanalyzeItem(rawId: string): Promise<ProcessedNewsItem | null> {
-  const { data: raw } = await supabase.from('raw_news').select('id,title,content_raw').eq('id', rawId).single();
+  const { data: raw } = await supabase.from('raw_news').select('id,title,content_raw').eq('id', rawId).maybeSingle();
   if (!raw) return null;
   const analysis = await callGeminiProxy('analyze_news', { title: raw.title, content_raw: raw.content_raw });
   const safe = {
@@ -142,7 +142,7 @@ export async function reanalyzeItem(rawId: string): Promise<ProcessedNewsItem | 
     score_brasil: Number(analysis.score_brasil) || 50,
   };
   await supabase.from('processed_news').update(safe).eq('raw_id', rawId);
-  const { data } = await supabase.from('processed_news').select('*').eq('raw_id', rawId).single();
+  const { data } = await supabase.from('processed_news').select('*').eq('raw_id', rawId).maybeSingle();
   return data as ProcessedNewsItem | null;
 }
 
