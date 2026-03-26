@@ -126,6 +126,26 @@ export async function getQueueStats(): Promise<QueueStats> {
   return stats;
 }
 
+export async function reanalyzeItem(rawId: string): Promise<ProcessedNewsItem | null> {
+  const { data: raw } = await supabase.from('raw_news').select('id,title,content_raw').eq('id', rawId).single();
+  if (!raw) return null;
+  const analysis = await callGeminiProxy('analyze_news', { title: raw.title, content_raw: raw.content_raw });
+  const safe = {
+    title: analysis.title || raw.title,
+    summary: analysis.summary || '',
+    narrative_media: analysis.narrative_media || '',
+    hidden_intent: analysis.hidden_intent || '',
+    real_facts: analysis.real_facts || '',
+    impact_rodrigo: analysis.impact_rodrigo || '',
+    category: analysis.category || 'Geral',
+    score_rodrigo: Number(analysis.score_rodrigo) || 50,
+    score_brasil: Number(analysis.score_brasil) || 50,
+  };
+  await supabase.from('processed_news').update(safe).eq('raw_id', rawId);
+  const { data } = await supabase.from('processed_news').select('*').eq('raw_id', rawId).single();
+  return data as ProcessedNewsItem | null;
+}
+
 export async function searchProcessedNews(params: { query: string; domain?: string; project?: string; tag?: string; limit?: number }): Promise<ProcessedNewsItem[]> {
   const e = await callGeminiProxy('embed', { text: params.query });
   if (!e?.embedding) return [];

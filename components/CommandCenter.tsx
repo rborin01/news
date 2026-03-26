@@ -37,6 +37,9 @@ interface CommandCenterProps {
   handleManualRefresh: () => void;
   setIsNeuralBridgeOpen: (v: boolean) => void;
   queueStats: { pending: number; processing: number; done: number; error: number } | null;
+  minScoreRodrigo: number;
+  setMinScoreRodrigo: (v: number) => void;
+  onResetErrors: () => void;
 }
 
 export const CommandCenter: React.FC<CommandCenterProps> = ({
@@ -45,6 +48,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
   autoPilotStatus, toggleAutoRadar, onDeepScan, onRefreshCommodities, commodities,
   ragStatus, onRagIndex, onRagSearch, allNews, externalQuery, setExternalQuery,
   handleDeepAnalysis, handleManualRefresh, setIsNeuralBridgeOpen, queueStats,
+  minScoreRodrigo, setMinScoreRodrigo, onResetErrors,
 }) => {
   const [showModelMenu, setShowModelMenu] = useState(false);
   const [showOllamaHelp, setShowOllamaHelp] = useState(false);
@@ -130,10 +134,10 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
               <div className="text-base font-black">{queueStats.done}</div>
               <div>Prontos</div>
             </div>
-            <div className="bg-red-50 border border-red-200 text-red-700 rounded p-1">
+            <button onClick={onResetErrors} className="bg-red-50 border border-red-200 text-red-700 rounded p-1 hover:bg-red-100 transition cursor-pointer w-full">
               <div className="text-base font-black">{queueStats.error}</div>
               <div>Erros</div>
-            </div>
+            </button>
           </div>
         </div>
       )}
@@ -157,6 +161,19 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({
             <button onClick={handleDeepAnalysis} className="absolute right-1 top-1 bottom-1 px-2 bg-red-500 text-white text-[9px] font-bold rounded uppercase hover:bg-red-600 transition">GO</button>
           )}
         </div>
+        {/* Score filter */}
+        <div className="mb-2">
+          <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase tracking-widest">
+            Score Rodrigo ≥ {minScoreRodrigo}
+          </label>
+          <input
+            type="range" min={0} max={100} step={5}
+            value={minScoreRodrigo}
+            onChange={e => setMinScoreRodrigo(Number(e.target.value))}
+            className="w-full accent-blue-600"
+          />
+        </div>
+
         <div className="grid grid-cols-2 gap-2">
           <button onClick={() => setIsNeuralBridgeOpen(true)} className="flex items-center justify-center gap-1 py-2 bg-slate-800 text-blue-400 rounded text-[10px] font-bold hover:bg-slate-700 transition">
             <Cpu size={12} /> EA BRIDGE

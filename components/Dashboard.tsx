@@ -15,7 +15,8 @@ import { CommandCenter } from './CommandCenter';
 import { OwnPressPanel } from './OwnPressPanel';
 import { checkOllamaHealth, fetchLocalModels } from '../services/ollamaService';
 import { checkPythonHealth } from '../services/pythonBridge';
-import { Globe, Newspaper, Bot, RefreshCw, Filter, AlertCircle, FileSpreadsheet, Sparkles, Radar, Pen, Share2, Check } from 'lucide-react';
+import { Globe, Newspaper, Bot, Filter, AlertCircle, FileSpreadsheet, Sparkles, Pen, Share2, Check } from 'lucide-react';
+import { callGeminiProxy } from '../services/supabaseClient';
 
 interface DashboardProps {
   data: IntelligenceReport | null;
@@ -58,6 +59,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [minPersonalRelevance, setMinPersonalRelevance] = useState(0);
   const [minNationalRelevance, setMinNationalRelevance] = useState(0);
   const [relevanceMode, setRelevanceMode] = useState<'personal' | 'national'>('personal');
+  const [minScoreRodrigo, setMinScoreRodrigo] = useState(0);
   const [speaking, setSpeaking] = useState(false);
   const [selectedNews, setSelectedNews] = useState<NewsAnalysis | null>(null);
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
@@ -107,8 +109,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
     if (selectedCategory !== 'Todos') result = result.filter(item => item.category?.includes(selectedCategory) || selectedCategory.includes(item.category));
     if (searchQuery) result = result.filter(item => item.title?.toLowerCase().includes(searchQuery.toLowerCase()) || item.narrative?.toLowerCase().includes(searchQuery.toLowerCase()));
     result = result.filter(item => (item.relevanceScore || 0) >= minPersonalRelevance && (item.nationalRelevance || 0) >= minNationalRelevance);
+    result = result.filter(item => (item.relevanceScore || 0) >= minScoreRodrigo);
     return result.sort((a, b) => relevanceMode === 'personal' ? (b.relevanceScore || 0) - (a.relevanceScore || 0) : (b.nationalRelevance || 0) - (a.nationalRelevance || 0));
-  }, [allNews, selectedCategory, searchQuery, minPersonalRelevance, minNationalRelevance, relevanceMode]);
+  }, [allNews, selectedCategory, searchQuery, minPersonalRelevance, minNationalRelevance, relevanceMode, minScoreRodrigo]);
 
   const filteredInvestigations = useMemo(() => {
     let result = allInvestigations;
@@ -144,6 +147,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const toggleSpeech = (text: string) => {
     if (speaking) { window.speechSynthesis.cancel(); setSpeaking(false); }
     else { const u = new SpeechSynthesisUtterance(text); u.lang = 'pt-BR'; u.rate = 1.1; window.speechSynthesis.speak(u); setSpeaking(true); }
+  };
+
+  const handleResetErrors = async () => {
+    try { await callGeminiProxy('reset_errors', { max_retry: 3 }); } catch (e) { console.warn('[Dashboard] reset_errors failed', e); }
   };
 
   const handleShare = () => {
@@ -326,6 +333,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
           handleManualRefresh={handleManualRefresh}
           setIsNeuralBridgeOpen={setIsNeuralBridgeOpen}
           queueStats={queueStats}
+          minScoreRodrigo={minScoreRodrigo}
+          setMinScoreRodrigo={setMinScoreRodrigo}
+          onResetErrors={handleResetErrors}
         />
       </main>
 
