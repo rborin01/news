@@ -179,6 +179,64 @@ serve(async (req) => {
           const json = (data: any, status = 200) =>
                       new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
+          if (action === "collect_rss") {
+                      // Server-side RSS collection — priority feeds embedded
+                      const FEEDS = [
+                            { url: "https://feeds.folha.uol.com.br/poder/rss091.xml", source: "Folha Poder" },
+                            { url: "https://feeds.folha.uol.com.br/mercado/rss091.xml", source: "Folha Mercado" },
+                            { url: "https://g1.globo.com/rss/g1/politica/feed.xml", source: "G1 Política" },
+                            { url: "https://g1.globo.com/rss/g1/economia/feed.xml", source: "G1 Economia" },
+                            { url: "https://canalpecuaria.com/feed/", source: "Canal Pecuária" },
+                            { url: "https://www.canalrural.com.br/feed/", source: "Canal Rural" },
+                            { url: "https://feeds.reuters.com/reuters/businessNews", source: "Reuters Business" },
+                            { url: "https://rss.uol.com.br/feed/economia.xml", source: "UOL Economia" },
+                      ];
+                      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+                      let collected = 0, duplicates = 0;
+                      for (const feed of FEEDS) {
+                            try {
+                                  const res = await fetch(feed.url, { signal: AbortSignal.timeout(8000) });
+                                  if (!res.ok) continue;
+                                  const xml = await res.text();
+                                  const re = /<item[^>]*>([\s\S]*?)<\/item>/gi;
+                                  let m;
+                                  while ((m = re.exec(xml)) !== null) {
+                                        const x = m[1];
+                                        const get = (t: string) => { const r = x.match(new RegExp(`<${t}[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/${t}>`, 'i')); return r ? r[1].trim() : ''; };
+                                        const url = get('link') || get('guid');
+                                        const title = get('title');
+                                        if (!url || !title) continue;
+                                        const { error } = await supabase.from('raw_news').insert({
+                                              url: url.substring(0, 2000), source: feed.source,
+                                              title: title.substring(0, 500),
+                                              content_raw: (get('description') || title).substring(0, 5000),
+                                              status: 'pending',
+                                        });
+                                        if (error?.code === '23505') duplicates++;
+                                        else if (!error) collected++;
+                                  }
+                            } catch (_) { continue; }
+                      }
+                      return json({ collected, duplicates });
+          }
+
+          if (action === "reprocess_empty") {
+                      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+                      // Find raw_news IDs whose processed_news has empty analysis
+                      const { data: empty } = await supabase.from('processed_news')
+                            .select('raw_id')
+                            .or('narrative_media.eq.,narrative_media.is.null,hidden_intent.eq.,hidden_intent.is.null');
+                      if (!empty?.length) return json({ reset: 0 });
+                      const rawIds = empty.map((r: any) => r.raw_id);
+                      // Delete empty processed_news records
+                      await supabase.from('processed_news').delete().in('raw_id', rawIds);
+                      // Reset raw_news status to pending
+                      const { data: updated } = await supabase.from('raw_news')
+                            .update({ status: 'pending', error_msg: null })
+                            .in('id', rawIds).select('id');
+                      return json({ reset: updated?.length ?? 0 });
+          }
+
           if (action === "generate") {
                       const { text, model } = await callGroq(body.prompt);
                       return json({ text, model_used: model });
