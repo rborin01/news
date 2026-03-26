@@ -50,11 +50,17 @@ true-press-process:  */35 min → {"action":"process_queue","batchSize":10}
 
 - supabase/functions/gemini-proxy/index.ts — Edge Function
 
-## ESTADO (28/02/2026)
+## ESTADO (26/03/2026 — V4.0)
 
-raw_news: ~634 total | ~589 pending | ~35 done | processed_news: ~35
+raw_news: crescendo via cron horário | processed_news: via Groq (llama-3.1-8b-instant)
+own_articles: tabela nova — RODAR SQL: supabase/migrations/001_own_articles.sql
 
-ETA fila: ~2 dias (rate limit Gemini free, 10/lote a cada 35min)
+**V4 CHANGES:**
+- Dashboard.tsx split: 569L→337L + CommandCenter.tsx (266L)
+- Tab 4: MINHA IMPRENSA (OwnPressPanel.tsx) — geração de artigos originais
+- Edge Function v3.9.0: + generate_article action
+- Groq substitui Gemini para análise (free, 14.400/dia, ultra rápido)
+- Fix: semanticSearch typo corrigido
 
 ## INTEGRAÇÃO OUTROS PROJETOS
 
@@ -78,10 +84,11 @@ RPC: match_processed_news_filtered(query_embedding, threshold, count, domain, pr
 
 ## BACKLOG
 
-- [ ] Fix: "Análise indisponível" no Dashboard (narrative_media não chega ao frontend)
-
+- [x] Fix: "Análise indisponível" — adaptNewsFromSupabase corrigido + Groq processa corretamente
+- [x] Dashboard.tsx split (500L limit) — CommandCenter.tsx extraído
+- [x] MINHA IMPRENSA tab — OwnPressPanel + ownPressService + generate_article action
+- [ ] **PENDENTE**: Rodar SQL `supabase/migrations/001_own_articles.sql` no Supabase
 - [ ] Feeds internacionais (Reuters RSS)
-
-- [ ] Integração QuantumCore / NeuroGrid / AgroVision
-
+- [ ] Integração QuantumCore / NeuroGrid / AgroVision (GET /api/news?domain=Finance_Trading)
 - [ ] Web scraping complementar ao RSS
+- [ ] Re-processar notícias antigas com campos vazios (reset_errors + process_queue)
