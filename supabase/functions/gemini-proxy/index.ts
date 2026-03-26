@@ -225,7 +225,7 @@ serve(async (req) => {
                       // Find raw_news IDs whose processed_news has empty analysis
                       const { data: empty } = await supabase.from('processed_news')
                             .select('raw_id')
-                            .or('narrative_media.eq.,narrative_media.is.null,hidden_intent.eq.,hidden_intent.is.null');
+                            .or('narrative_media.eq."",narrative_media.is.null');
                       if (!empty?.length) return json({ reset: 0 });
                       const rawIds = empty.map((r: any) => r.raw_id);
                       // Delete empty processed_news records

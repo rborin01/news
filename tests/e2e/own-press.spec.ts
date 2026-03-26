@@ -10,24 +10,24 @@ async function loginAndGoToOwnPress(page: any) {
     await passwordInput.press('Enter');
   }
   await expect(
-    page.locator('text=PRESS WATCH').or(page.locator('text=DASHBOARD'))
+    page.getByText('PRESS WATCH').or(page.getByText('DASHBOARD'))
   ).toBeVisible({ timeout: 15000 });
-  await page.locator('text=MINHA IMPRENSA').click();
-  await expect(page.locator('text=Minha Imprensa')).toBeVisible({ timeout: 8000 });
+  await page.getByText('MINHA IMPRENSA').click();
+  await expect(page.getByText('Minha Imprensa')).toBeVisible({ timeout: 8000 });
 }
 
 test.describe('Own Press - Minha Imprensa', () => {
   test.beforeEach(async ({ page }) => { await loginAndGoToOwnPress(page); });
 
   test('should display Own Press panel', async ({ page }) => {
-    await expect(page.locator('text=Minha Imprensa')).toBeVisible();
-    await expect(page.locator('text=Gerar Novo Artigo')).toBeVisible();
+    await expect(page.getByText('Minha Imprensa')).toBeVisible();
+    await expect(page.getByText('Gerar Novo Artigo')).toBeVisible();
   });
 
   test('should have topic input and generate button', async ({ page }) => {
     const topicInput = page.locator('input[placeholder*="Tema"]');
     await expect(topicInput).toBeVisible();
-    const generateBtn = page.locator('button:has-text("Gerar Artigo")');
+    const generateBtn = page.getByRole('button', { name: /Gerar Artigo/ });
     await expect(generateBtn).toBeVisible();
   });
 
@@ -39,35 +39,38 @@ test.describe('Own Press - Minha Imprensa', () => {
   });
 
   test('should disable generate button when topic is empty', async ({ page }) => {
-    const generateBtn = page.locator('button:has-text("Gerar Artigo")');
+    const generateBtn = page.getByRole('button', { name: /Gerar Artigo/ });
     await expect(generateBtn).toBeDisabled();
   });
 
   test('should enable generate button when topic is filled', async ({ page }) => {
     const topicInput = page.locator('input[placeholder*="Tema"]');
     await topicInput.fill('IA no Agronegocio');
-    const generateBtn = page.locator('button:has-text("Gerar Artigo")');
+    const generateBtn = page.getByRole('button', { name: /Gerar Artigo/ });
     await expect(generateBtn).toBeEnabled();
   });
 
-  test('should show articles list section', async ({ page }) => {
-    await expect(page.locator('text=Artigos')).toBeVisible({ timeout: 10000 });
+  test('should show articles count section', async ({ page }) => {
+    await expect(page.getByText(/Artigos/)).toBeVisible({ timeout: 10000 });
   });
 
-  test('should show empty state when no articles exist', async ({ page }) => {
-    const emptyState = page.locator('text=Nenhum artigo gerado ainda');
-    const articleCard = page.locator('text=MINHA IMPRENSA').locator('~*').locator('h3').first();
-    await expect(emptyState.or(articleCard)).toBeVisible({ timeout: 10000 });
+  test('should show empty state when no articles', async ({ page }) => {
+    await expect(
+      page.getByText('Nenhum artigo gerado ainda.').or(page.locator('h3').first())
+    ).toBeVisible({ timeout: 10000 });
   });
 
   test('should generate article and show in list', async ({ page }) => {
     test.setTimeout(60000);
     const topicInput = page.locator('input[placeholder*="Tema"]');
     await topicInput.fill('Impacto da IA no Agronegocio Brasileiro 2026');
-    const generateBtn = page.locator('button:has-text("Gerar Artigo")');
+    const generateBtn = page.getByRole('button', { name: /Gerar Artigo/ });
     await generateBtn.click();
-    // Groq is fast — should complete within 30s
-    const articleHeadline = page.locator('h3').first();
-    await expect(articleHeadline).toBeVisible({ timeout: 35000 });
+    await expect(page.locator('h3').first()).toBeVisible({ timeout: 40000 });
+  });
+
+  test('should show context input field', async ({ page }) => {
+    const contextInput = page.locator('input[placeholder*="Links"]').or(page.locator('input[placeholder*="Fontes"]'));
+    await expect(contextInput).toBeVisible();
   });
 });

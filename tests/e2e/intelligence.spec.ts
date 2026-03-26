@@ -10,7 +10,7 @@ async function login(page: any) {
     await passwordInput.press('Enter');
   }
   await expect(
-    page.locator('text=PRESS WATCH').or(page.locator('text=DASHBOARD'))
+    page.getByText('PRESS WATCH').or(page.getByText('DASHBOARD'))
   ).toBeVisible({ timeout: 15000 });
 }
 
@@ -18,30 +18,35 @@ test.describe('Intelligence Hub', () => {
   test.beforeEach(async ({ page }) => { await login(page); });
 
   test('should authenticate and show dashboard', async ({ page }) => {
-    await expect(page.locator('text=DASHBOARD')).toBeVisible();
+    await expect(page.getByText('DASHBOARD')).toBeVisible();
   });
 
   test('should load news or show empty state', async ({ page }) => {
-    const newsCard = page.locator('[class*="bg-white"][class*="rounded"]').first();
-    const emptyState = page.locator('text=Sem dados');
-    await expect(newsCard.or(emptyState)).toBeVisible({ timeout: 20000 });
+    const emptyState = page.getByText('Sem dados');
+    const hasContent = page.locator('article, [data-news-card]').first();
+    await expect(emptyState.or(hasContent)).toBeVisible({ timeout: 20000 });
   });
 
   test('should have four view mode tabs', async ({ page }) => {
-    await expect(page.locator('text=PRESS WATCH')).toBeVisible();
-    await expect(page.locator('text=AI ORIGINALS')).toBeVisible();
-    await expect(page.locator('text=DATA ROOM')).toBeVisible();
-    await expect(page.locator('text=MINHA IMPRENSA')).toBeVisible();
+    await expect(page.getByText('PRESS WATCH')).toBeVisible();
+    await expect(page.getByText('AI ORIGINALS')).toBeVisible();
+    await expect(page.getByText('DATA ROOM')).toBeVisible();
+    await expect(page.getByText('MINHA IMPRENSA')).toBeVisible();
   });
 
   test('should switch to AI ORIGINALS tab', async ({ page }) => {
-    await page.locator('text=AI ORIGINALS').click();
-    await expect(page.locator('text=Investigações')).toBeVisible({ timeout: 5000 });
+    await page.getByText('AI ORIGINALS').click();
+    await expect(page.getByText('Investigações')).toBeVisible({ timeout: 5000 });
   });
 
   test('should switch to DATA ROOM tab', async ({ page }) => {
-    await page.locator('text=DATA ROOM').click();
-    await expect(page.locator('text=Arquivos')).toBeVisible({ timeout: 5000 });
+    await page.getByText('DATA ROOM').click();
+    await expect(page.getByText('Arquivos')).toBeVisible({ timeout: 5000 });
+  });
+
+  test('should switch to MINHA IMPRENSA tab', async ({ page }) => {
+    await page.getByText('MINHA IMPRENSA').click();
+    await expect(page.getByText('Minha Imprensa')).toBeVisible({ timeout: 5000 });
   });
 
   test('should filter news by text search', async ({ page }) => {
@@ -52,9 +57,9 @@ test.describe('Intelligence Hub', () => {
   });
 
   test('should display queue stats widget', async ({ page }) => {
-    const pendingBadge = page.locator('text=Pendente');
-    const doneBadge = page.locator('text=Prontos');
-    await expect(pendingBadge.or(doneBadge)).toBeVisible({ timeout: 5000 });
+    await expect(
+      page.getByText('Pendente').or(page.getByText('Prontos'))
+    ).toBeVisible({ timeout: 5000 });
   });
 
   test('should display score filter slider', async ({ page }) => {
@@ -63,10 +68,6 @@ test.describe('Intelligence Hub', () => {
   });
 
   test('should display Piloto Automatico in sidebar', async ({ page }) => {
-    await expect(page.locator('text=Piloto Automático')).toBeVisible({ timeout: 5000 });
-  });
-
-  test('should have MINHA IMPRENSA tab', async ({ page }) => {
-    await expect(page.locator('text=MINHA IMPRENSA')).toBeVisible();
+    await expect(page.getByText('Piloto Automático')).toBeVisible({ timeout: 5000 });
   });
 });
