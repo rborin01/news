@@ -95,7 +95,7 @@ async function analyzeNews(title: string, contentRaw: string): Promise<any> {
 }
 
 // ── Processar fila ───────────────────────────────────────────────────────────
-async function processQueue(batchSize = 5): Promise<any> {
+async function processQueue(batchSize = 20): Promise<any> {
         const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
   const { data: pending, error } = await supabase
@@ -253,7 +253,7 @@ serve(async (req) => {
           }
 
           if (action === "process_queue") {
-                      const r = await processQueue(body.batch_size ?? 5);
+                      const r = await processQueue(body.batchSize ?? body.batch_size ?? 20);
                       return json(r);
           }
 
