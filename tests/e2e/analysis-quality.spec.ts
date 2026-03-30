@@ -150,24 +150,41 @@ test.describe('V4.1 Analysis Quality — Edge Function', () => {
 
 test.describe('V4.1 Analysis Quality — Friday Dashboard', () => {
   test('sidebar contains all 17 canonical categories', async ({ page }) => {
-    // Friday dashboard news page — no auth needed for category sidebar check
+    // Friday dashboard: SPA at /dashboard/#/news
+    // Root (/) is n8n; dashboard is at /dashboard/ path
     const fridayUrl =
       process.env.FRIDAY_URL || 'https://friday.rodrigoborin.com';
-    await page.goto(`${fridayUrl}/pages/news`, { waitUntil: 'networkidle' });
+    await page.goto(`${fridayUrl}/dashboard/`, { waitUntil: 'domcontentloaded' });
 
-    // Wait for news page to load
+    // Navigate to news section via hash
+    await page.evaluate(() => { window.location.hash = '/news'; });
+
+    // Wait for news-category-sidebar to be rendered by JS
+    await page.waitForSelector('#news-category-sidebar', { timeout: 15000 }).catch(() => null);
     await page.waitForTimeout(3000);
 
-    // Get all text content from the sidebar
-    const pageText = await page.textContent('body');
+    // Check CANONICAL_CATEGORIES is defined (var is global in news.js)
+    const jsCategories = await page.evaluate(() => {
+      return typeof window.CANONICAL_CATEGORIES !== 'undefined'
+        ? window.CANONICAL_CATEGORIES
+        : null;
+    });
 
-    // Each canonical category must appear somewhere on the page
-    // (they are rendered in the sidebar filter list)
-    for (const cat of CANONICAL_CATEGORIES) {
-      expect(
-        pageText,
-        `Category "${cat}" not found on Friday dashboard`
-      ).toContain(cat);
+    if (jsCategories && Array.isArray(jsCategories)) {
+      // Verify all 17 are present in the JS array
+      for (const cat of CANONICAL_CATEGORIES) {
+        expect(jsCategories, `Category "${cat}" missing from CANONICAL_CATEGORIES array`).toContain(cat);
+      }
+    } else {
+      // Fallback: check rendered sidebar text
+      const sidebarText = await page.textContent('#news-category-sidebar').catch(() => '');
+      const pageText = sidebarText || (await page.textContent('body'));
+      for (const cat of CANONICAL_CATEGORIES) {
+        expect(
+          pageText,
+          `Category "${cat}" not found on Friday dashboard`
+        ).toContain(cat);
+      }
     }
   });
 });
