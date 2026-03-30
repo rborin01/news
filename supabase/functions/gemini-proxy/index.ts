@@ -1,7 +1,8 @@
 // ============================================================================
-// TRUE PRESS — Edge Function: gemini-proxy v3.9.0
-// Análise: Groq (llama-3.1-8b-instant) — grátis, 14.400/dia, ultra rápido
+// TRUE PRESS — Edge Function: gemini-proxy v4.1.0
+// Análise: Groq (llama-3.3-70b-versatile) — melhor qualidade de análise, 14.400/dia
 // Embedding: Gemini embedding-001 (fallback: sem embedding)
+// v4.1.0: max_tokens 1000→1200 (100x headroom, 1.5s worst-case on Groq LPU)
 // ============================================================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -12,7 +13,7 @@ const GEMINI_API_KEY       = Deno.env.get("GEMINI_API_KEY") ?? "";
 const SUPABASE_URL         = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
-const GROQ_MODEL  = "llama-3.1-8b-instant";
+const GROQ_MODEL  = "llama-3.3-70b-versatile";
 const EMBED_MODEL = "gemini-embedding-001";
 const RATE_DELAY_MS = 500; // Groq é rápido — 500ms entre chamadas suficiente
 
@@ -44,7 +45,7 @@ async function callGroq(prompt: string): Promise<{ text: string; model: string }
                         model: GROQ_MODEL,
                         messages: [{ role: "user", content: prompt }],
                         temperature: 0.3,
-                        max_tokens: 1000,
+                        max_tokens: 1200,
             }),
   });
 
@@ -77,17 +78,24 @@ function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
       // ── Análise de notícia via Groq ──────────────────────────────────────────────
 async function analyzeNews(title: string, contentRaw: string): Promise<any> {
-        const prompt = `Você é analista de inteligência privada brasileiro. Analise a notícia abaixo.
+        const prompt = `Você é um analista sênior de inteligência privada brasileiro, especializado em geopolítica, mercados financeiros e agronegócio. Faça uma análise PROFUNDA e DETALHADA da notícia abaixo.
 
-        RETORNE APENAS JSON VÁLIDO, sem markdown, sem texto antes ou depois.
+RETORNE APENAS JSON VÁLIDO, sem markdown, sem texto antes ou depois.
 
-        {"title":"título limpo max 120 chars","summary":"resumo em 2 frases objetivas","narrative_media":"narrativa da mídia mainstream","hidden_intent":"agenda oculta por trás da notícia","real_facts":"apenas fatos verificáveis sem spin","impact_rodrigo":"impacto para produtor rural e investidor brasileiro","category":"Agronegócio|Política|Mercado Financeiro|Geopolítica|Tecnologia|Saúde|Segurança|Infraestrutura|Energia|Outros","level_1_domain":"Finance_Trading|Politics_Gov|Agro_Commodities|Tech_AI|Health_Bio|Security_Legal|Infrastructure|Energy|International|General","level_2_project":"QuantumCore|NeuroGrid|TruePress|Personal|AERON|General","level_3_tag":"snake_case ex: soja_precos","score_rodrigo":0,"score_brasil":0}
+Regras obrigatórias:
+- summary: mínimo 3 frases, máximo 5. Contextualize o fato, explique o que aconteceu e por quê importa.
+- narrative_media: Qual é a narrativa que a mídia mainstream está construindo? Quem se beneficia dessa narrativa? Mínimo 2 frases.
+- hidden_intent: Qual é a agenda real por trás desta notícia? Quem são os atores reais? O que não está sendo dito? Mínimo 2 frases.
+- real_facts: Liste APENAS fatos verificáveis, números concretos, datas, nomes. Separe com ponto-e-vírgula. Mínimo 3 fatos.
+- impact_rodrigo: Como isso impacta ESPECIFICAMENTE um produtor rural brasileiro, investidor pessoa física e empreendedor de tecnologia? Cite oportunidades E riscos concretos. Mínimo 3 frases.
 
-        NOTÍCIA:
+{"title":"título limpo max 120 chars","summary":"análise completa em 3-5 frases contextualizadas","narrative_media":"narrativa da mídia e quem se beneficia, min 2 frases","hidden_intent":"agenda oculta e atores reais, min 2 frases","real_facts":"fato1; fato2; fato3; fato4","impact_rodrigo":"impacto específico para produtor rural, investidor e empreendedor tech, min 3 frases","category":"Agronegócio & Commodities|Política & STF|Mercado Financeiro & Forex|Geopolítica & Guerra|Tecnologia & IA|Saúde & Ciência|Segurança|Infraestrutura & Imobiliário|Energia|Meio Ambiente|Economia & Finanças|Liberdade & Censura|Negócios & Empreendedorismo|Entretenimento & Cultura|Esportes|Internacional|Outros","level_1_domain":"Finance_Trading|Politics_Gov|Agro_Commodities|Tech_AI|Health_Bio|Security_Legal|Infrastructure|Energy|International|General|Meio_Ambiente|Negocios|Entretenimento","level_2_project":"QuantumCore|NeuroGrid|TruePress|Personal|AERON|General","level_3_tag":"snake_case ex: soja_precos","score_rodrigo":0,"score_brasil":0}
 
-        Título: ${title}
+NOTÍCIA PARA ANÁLISE:
 
-        Conteúdo: ${(contentRaw ?? "").substring(0, 1500)}`;
+Título: ${title}
+
+Conteúdo: ${(contentRaw ?? "").substring(0, 2000)}`;
 
   const { text, model } = await callGroq(prompt);
         const parsed = parseJSON(text);
