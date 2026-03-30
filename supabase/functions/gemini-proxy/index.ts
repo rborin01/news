@@ -143,8 +143,12 @@ async function processQueue(batchSize = 20): Promise<any> {
               };
 
               // Embedding opcional — não bloqueia se falhar
+              // vector(768) only — discard if Gemini returns 3072-dim (new API)
               let embedding: number[] | null = null;
-                      try { embedding = await generateEmbedding(`${safe.title} ${safe.summary}`); } catch (_) {}
+                      try {
+                        const e = await generateEmbedding(`${safe.title} ${safe.summary}`);
+                        if (e && e.length === 768) embedding = e;
+                      } catch (_) {}
 
               const { error: insertErr } = await supabase.from("processed_news").insert({
                             raw_id: item.id, title: safe.title, summary: safe.summary,
