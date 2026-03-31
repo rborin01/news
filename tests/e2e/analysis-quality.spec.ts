@@ -126,7 +126,8 @@ test.describe('V4.1 Analysis Quality — Volume', () => {
 // ── Edge Function Health Test ─────────────────────────────────────────────
 
 test.describe('V4.1 Analysis Quality — Edge Function', () => {
-  test('health endpoint returns groq_model = llama-3.3-70b-versatile', async () => {
+  // Updated W27: switched from Groq to Claude API
+  test('health endpoint returns claude model (W27 migration)', async () => {
     const res = await fetch(EDGE_FUNCTION_URL, {
       method: 'POST',
       headers: {
@@ -137,7 +138,8 @@ test.describe('V4.1 Analysis Quality — Edge Function', () => {
     });
     expect(res.ok).toBe(true);
     const data = await res.json();
-    expect(data.groq_model).toBe('llama-3.3-70b-versatile');
+    expect(data.claude).toBe(true);
+    expect(data.claude_model).toContain('claude');
   });
 });
 
