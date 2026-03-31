@@ -161,15 +161,13 @@ export const IntelDashboard: React.FC<IntelDashboardProps> = ({ normalizedNews, 
       </div>
 
       {/* Pipeline Status */}
-      {queueStats && (
-        <div data-testid="intel-pipeline" className="flex items-center gap-4 px-4 py-2.5 rounded-lg bg-slate-800/50 border border-slate-700/50 text-xs">
-          <span className="font-bold text-slate-400 uppercase tracking-wider">Pipeline:</span>
-          <PipelineBadge label="Pendentes" value={queueStats.pending} color="yellow" />
-          <PipelineBadge label="Processando" value={queueStats.processing} color="blue" />
-          <PipelineBadge label="Concluidos" value={queueStats.done} color="green" />
-          {queueStats.error > 0 && <PipelineBadge label="Erros" value={queueStats.error} color="red" />}
-        </div>
-      )}
+      <div data-testid="intel-pipeline" className="flex items-center gap-4 px-4 py-2.5 rounded-lg bg-slate-800/50 border border-slate-700/50 text-xs">
+        <span className="font-bold text-slate-400 uppercase tracking-wider">Pipeline:</span>
+        <PipelineBadge label="Pendentes" value={queueStats?.pending ?? 0} color="yellow" />
+        <PipelineBadge label="Processando" value={queueStats?.processing ?? 0} color="blue" />
+        <PipelineBadge label="Concluidos" value={queueStats?.done ?? 0} color="green" />
+        {(queueStats?.error ?? 0) > 0 && <PipelineBadge label="Erros" value={queueStats?.error ?? 0} color="red" />}
+      </div>
     </div>
   );
 };
