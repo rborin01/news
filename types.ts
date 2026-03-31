@@ -227,24 +227,26 @@ Projetos: Construtora SPE, Imobiliária (Aptos/Hotéis)
 Interesses: Liberdade individual, segurança jurídica, ROI seguro, futuro das filhas, diversificação de culturas (Soja/Amendoim/Eucalipto).
 `;
 
-// CATEGORIAS BLINDADAS (BLUEPRINT 3.3.2)
-export const DEFAULT_CATEGORIES = [
-    // 1. Prioridade Rodrigo
-    "🚨 Manchetes & Alertas",
-    "⚖️ Política & STF (Leis)",
-    "🌱 Agronegócio & Commodities",
-    "💹 Forex & Finanças",
-    "🏗️ Imobiliário & Construção SC",
-    "🗽 Liberdade & Censura",
-    
-    // 2. Google News Standard (Full Spectrum)
-    "🤖 Inteligência Artificial",
-    "🇧🇷 Brasil",
-    "🌍 Mundo",
-    "💼 Negócios",
-    "💻 Tecnologia",
-    "🎬 Entretenimento",
-    "⚽ Esportes",
-    "🧬 Ciência",
-    "🏥 Saúde"
+// CANONICAL CATEGORIES — 17 categories, NON-NEGOTIABLE (see CLAUDE.md FORGE rules)
+export const CANONICAL_CATEGORIES = [
+  'Agronegócio & Commodities',
+  'Política & STF',
+  'Mercado Financeiro & Forex',
+  'Geopolítica & Guerra',
+  'Tecnologia & IA',
+  'Saúde & Ciência',
+  'Segurança',
+  'Infraestrutura & Imobiliário',
+  'Energia',
+  'Meio Ambiente',
+  'Economia & Finanças',
+  'Liberdade & Censura',
+  'Negócios & Empreendedorismo',
+  'Entretenimento & Cultura',
+  'Esportes',
+  'Internacional',
+  'Outros',
 ];
+
+// Backward compat alias
+export const DEFAULT_CATEGORIES = CANONICAL_CATEGORIES;

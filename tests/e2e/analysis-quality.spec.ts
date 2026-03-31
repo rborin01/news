@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { SUPABASE_URL, SUPABASE_ANON_KEY, EDGE_FUNCTION_URL } from './supabase-test-config';
 
 // ============================================================================
 // True Press V4.1 — Analysis Quality E2E Tests (RED phase)
@@ -6,12 +7,6 @@ import { test, expect } from '@playwright/test';
 // These tests validate that processed_news records have deep analysis fields
 // and that the Friday dashboard displays all 17 canonical categories.
 // ============================================================================
-
-const SUPABASE_URL = 'https://sfnvctljxidzueoutnxv.supabase.co';
-const SUPABASE_ANON_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNmbnZjdGxqeGlkenVlb3V0bnh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMTI5OTcsImV4cCI6MjA4NzY4ODk5N30.Yg65dHXyZqzBWNHM1nW-YfBx7FWFpWyoFvM_Obj-wQI';
-
-const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/gemini-proxy`;
 
 // NON-NEGOTIABLE: These 17 categories are the ONLY valid values.
 // This constant must match the Edge Function prompt AND Friday dashboard.

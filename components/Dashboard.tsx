@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { IntelligenceReport, NewsAnalysis, ExternalAnalysisResult, AiInvestigation, MarketSentiment, RawDataResult, DEFAULT_CATEGORIES, AIConfig, OllamaModel } from '../types';
+import { IntelligenceReport, NewsAnalysis, ExternalAnalysisResult, AiInvestigation, MarketSentiment, RawDataResult, DEFAULT_CATEGORIES, CANONICAL_CATEGORIES, AIConfig, OllamaModel } from '../types';
 import { generateDeepAnalysis, generateMarketSentiment } from '../services/geminiService';
 import { getAllRawData } from '../db';
 import { NewsCard } from './NewsCard';
@@ -98,20 +98,27 @@ export const Dashboard: React.FC<DashboardProps> = ({
     return () => clearInterval(interval);
   }, []);
 
-  const categories = useMemo(() => {
-    const loadedCats = new Set(allNews.filter(n => n?.category).map(n => n.category));
-    DEFAULT_CATEGORIES.forEach(c => loadedCats.add(c));
-    return ['Todos', ...Array.from(loadedCats)];
+  // Normalize pipe-separated categories at data boundary (take first before '|')
+  const normalizedNews = useMemo(() => {
+    return allNews.map(n => ({
+      ...n,
+      category: n.category?.split('|')[0]?.trim() || 'Outros',
+    }));
   }, [allNews]);
 
+  const categories = useMemo(() => {
+    return ['Todos', ...CANONICAL_CATEGORIES];
+  }, []);
+
   const filteredNews = useMemo(() => {
-    let result = allNews;
-    if (selectedCategory !== 'Todos') result = result.filter(item => item.category?.includes(selectedCategory) || selectedCategory.includes(item.category));
+    let result = normalizedNews;
+    const effectiveCategory = selectedCategory === 'IA' ? 'Tecnologia & IA' : selectedCategory;
+    if (effectiveCategory !== 'Todos') result = result.filter(item => item.category === effectiveCategory);
     if (searchQuery) result = result.filter(item => item.title?.toLowerCase().includes(searchQuery.toLowerCase()) || item.narrative?.toLowerCase().includes(searchQuery.toLowerCase()));
     result = result.filter(item => (item.relevanceScore || 0) >= minPersonalRelevance && (item.nationalRelevance || 0) >= minNationalRelevance);
     result = result.filter(item => (item.relevanceScore || 0) >= minScoreRodrigo);
     return result.sort((a, b) => relevanceMode === 'personal' ? (b.relevanceScore || 0) - (a.relevanceScore || 0) : (b.nationalRelevance || 0) - (a.nationalRelevance || 0));
-  }, [allNews, selectedCategory, searchQuery, minPersonalRelevance, minNationalRelevance, relevanceMode, minScoreRodrigo]);
+  }, [normalizedNews, selectedCategory, searchQuery, minPersonalRelevance, minNationalRelevance, relevanceMode, minScoreRodrigo]);
 
   const filteredInvestigations = useMemo(() => {
     let result = allInvestigations;
