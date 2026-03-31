@@ -1,21 +1,21 @@
 // ============================================================================
-// TRUE PRESS — Edge Function: gemini-proxy v4.1.0
-// Análise: Groq (llama-3.3-70b-versatile) — melhor qualidade de análise, 14.400/dia
+// TRUE PRESS — Edge Function: gemini-proxy v5.0.0
+// Análise: Claude Haiku (claude-haiku-4-5-20251001) — fast + no rate limits on paid tier
 // Embedding: Gemini embedding-001 (fallback: sem embedding)
-// v4.1.0: max_tokens 1000→1200 (100x headroom, 1.5s worst-case on Groq LPU)
+// v5.0.0: Groq → Claude API migration (W27)
 // ============================================================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const GROQ_API_KEY         = Deno.env.get("GROQ_API_KEY") ?? "";
+const ANTHROPIC_API_KEY    = Deno.env.get("ANTHROPIC_API_KEY") ?? "";
 const GEMINI_API_KEY       = Deno.env.get("GEMINI_API_KEY") ?? "";
 const SUPABASE_URL         = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 
-const GROQ_MODEL  = "llama-3.3-70b-versatile";
-const EMBED_MODEL = "gemini-embedding-001";
-const RATE_DELAY_MS = 500; // Groq é rápido — 500ms entre chamadas suficiente
+const CLAUDE_MODEL = "claude-haiku-4-5-20251001";
+const EMBED_MODEL  = "gemini-embedding-001";
+const RATE_DELAY_MS = 300; // Claude is fast on paid tier — 300ms between calls
 
 const corsHeaders = {
         "Access-Control-Allow-Origin": "*",
@@ -31,31 +31,31 @@ function parseJSON(raw: string): any {
         throw new Error(`JSON inválido: ${raw.substring(0, 200)}`);
 }
 
-// ── Groq — análise de texto ──────────────────────────────────────────────────
-async function callGroq(prompt: string): Promise<{ text: string; model: string }> {
-        if (!GROQ_API_KEY) throw new Error("GROQ_API_KEY não configurada");
+// ── Claude — análise de texto ───────────────────────────────────────────────
+async function callClaude(prompt: string): Promise<{ text: string; model: string }> {
+        if (!ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY não configurada");
 
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
             method: "POST",
             headers: {
                         "Content-Type": "application/json",
-                        "Authorization": `Bearer ${GROQ_API_KEY}`,
+                        "x-api-key": ANTHROPIC_API_KEY,
+                        "anthropic-version": "2023-06-01",
             },
             body: JSON.stringify({
-                        model: GROQ_MODEL,
-                        messages: [{ role: "user", content: prompt }],
-                        temperature: 0.3,
+                        model: CLAUDE_MODEL,
                         max_tokens: 1200,
+                        messages: [{ role: "user", content: prompt }],
             }),
   });
 
   if (!res.ok) {
             const b = await res.text();
-            throw new Error(`GROQ_HTTP_${res.status}:${b.substring(0, 200)}`);
+            throw new Error(`CLAUDE_HTTP_${res.status}:${b.substring(0, 200)}`);
   }
 
   const data = await res.json();
-        return { text: data.choices?.[0]?.message?.content ?? "", model: `groq-${GROQ_MODEL}` };
+        return { text: data.content?.[0]?.text ?? "", model: `claude-${CLAUDE_MODEL}` };
 }
 
 // ── Gemini — apenas embedding ────────────────────────────────────────────────
@@ -76,7 +76,7 @@ async function generateEmbedding(text: string): Promise<number[]> {
 
 function sleep(ms: number) { return new Promise(r => setTimeout(r, ms)); }
 
-      // ── Análise de notícia via Groq ──────────────────────────────────────────────
+      // ── Análise de notícia via Claude ─────────────────────────────────────────
 async function analyzeNews(title: string, contentRaw: string): Promise<any> {
         const prompt = `Você é um analista sênior de inteligência privada brasileiro, especializado em geopolítica, mercados financeiros e agronegócio. Faça uma análise PROFUNDA e DETALHADA da notícia abaixo.
 
@@ -97,7 +97,7 @@ Título: ${title}
 
 Conteúdo: ${(contentRaw ?? "").substring(0, 2000)}`;
 
-  const { text, model } = await callGroq(prompt);
+  const { text, model } = await callClaude(prompt);
         const parsed = parseJSON(text);
         return { ...parsed, model_used: model };
 }
@@ -139,7 +139,7 @@ async function processQueue(batchSize = 20): Promise<any> {
                             level_3_tag:     analysis.level_3_tag      || "geral",
                             score_rodrigo:   Number(analysis.score_rodrigo) || 50,
                             score_brasil:    Number(analysis.score_brasil)  || 50,
-                            model_used:      analysis.model_used       || "groq",
+                            model_used:      analysis.model_used       || "claude",
               };
 
               // Embedding opcional — não bloqueia se falhar
@@ -250,7 +250,7 @@ serve(async (req) => {
           }
 
           if (action === "generate") {
-                      const { text, model } = await callGroq(body.prompt);
+                      const { text, model } = await callClaude(body.prompt);
                       return json({ text, model_used: model });
           }
 
@@ -308,7 +308,7 @@ RETORNE APENAS JSON VÁLIDO, sem markdown.
 TEMA: ${topic}
 CONTEXTO: ${(research_context ?? "").substring(0, 1000)}`;
 
-                      const { text, model } = await callGroq(prompt);
+                      const { text, model } = await callClaude(prompt);
                       const parsed = parseJSON(text);
 
                       const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
@@ -319,7 +319,7 @@ CONTEXTO: ${(research_context ?? "").substring(0, 1000)}`;
                             body: parsed.body || "",
                             sources: parsed.sources || [],
                             category: parsed.category || "Outros",
-                            author_ai: `groq-${GROQ_MODEL}`,
+                            author_ai: `claude-${CLAUDE_MODEL}`,
                       }).select().single();
 
                       if (insertErr) throw new Error(insertErr.message);
@@ -327,15 +327,25 @@ CONTEXTO: ${(research_context ?? "").substring(0, 1000)}`;
           }
 
           if (action === "health") {
-                      let groqOk = false;
+                      let claudeOk = false;
                       try {
-                                    const r = await fetch("https://api.groq.com/openai/v1/models", {
-                                                    headers: { "Authorization": `Bearer ${GROQ_API_KEY}` },
-                                                    signal: AbortSignal.timeout(5000),
+                                    const r = await fetch("https://api.anthropic.com/v1/messages", {
+                                                    method: "POST",
+                                                    headers: {
+                                                        "Content-Type": "application/json",
+                                                        "x-api-key": ANTHROPIC_API_KEY,
+                                                        "anthropic-version": "2023-06-01",
+                                                    },
+                                                    body: JSON.stringify({
+                                                        model: CLAUDE_MODEL,
+                                                        max_tokens: 10,
+                                                        messages: [{ role: "user", content: "ping" }],
+                                                    }),
+                                                    signal: AbortSignal.timeout(8000),
                                     });
-                                    groqOk = r.ok;
+                                    claudeOk = r.ok;
                       } catch (_) {}
-                      return json({ groq: groqOk, groq_model: GROQ_MODEL, gemini_embed: !!GEMINI_API_KEY });
+                      return json({ claude: claudeOk, claude_model: CLAUDE_MODEL, gemini_embed: !!GEMINI_API_KEY });
           }
 
           return json({ error: `Unknown action: ${action}` }, 400);

@@ -17,6 +17,7 @@ import { checkOllamaHealth, fetchLocalModels } from '../services/ollamaService';
 import { checkPythonHealth } from '../services/pythonBridge';
 import { Globe, Newspaper, Bot, Filter, AlertCircle, FileSpreadsheet, Sparkles, Pen, Share2, Check } from 'lucide-react';
 import { callGeminiProxy } from '../services/supabaseClient';
+import { IntelDashboard } from './IntelDashboard';
 
 interface DashboardProps {
   data: IntelligenceReport | null;
@@ -238,6 +239,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
               {viewMode === 'media' && (
                 <>
+                  <IntelDashboard normalizedNews={normalizedNews} queueStats={queueStats ?? null} />
                   {data?.summary && (
                     <div className="mb-8 p-6 bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl shadow-xl text-white relative overflow-hidden">
                       <div className="absolute top-0 right-0 p-4 opacity-10"><Globe size={100} /></div>
