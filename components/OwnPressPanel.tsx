@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Pen, RefreshCw, Trash2, ChevronDown, ChevronUp, AlertCircle } from 'lucide-react';
 import { OwnArticle, generateArticle, listOwnArticles, deleteOwnArticle } from '../services/ownPressService';
-
-const CATEGORIES = ['Agronegócio', 'Política', 'Mercado Financeiro', 'Geopolítica', 'Tecnologia', 'Jurídico', 'Outros'];
+import { CANONICAL_CATEGORIES } from '../types';
 
 interface ArticleCardProps {
   article: OwnArticle;
@@ -46,7 +45,7 @@ export const OwnPressPanel: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [topic, setTopic] = useState('');
   const [context, setContext] = useState('');
-  const [category, setCategory] = useState('Agronegócio');
+  const [category, setCategory] = useState(CANONICAL_CATEGORIES[0]);
 
   const load = async () => {
     setLoading(true);
@@ -127,7 +126,7 @@ export const OwnPressPanel: React.FC = () => {
                 onChange={e => setCategory(e.target.value)}
                 className="w-full px-4 py-3 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
               >
-                {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                {CANONICAL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
               </select>
             </div>
             <div>
