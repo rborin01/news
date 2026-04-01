@@ -59,13 +59,22 @@ test.describe('W31 — Queue Stats in Sidebar', () => {
 test.describe('W31 — Auto Resumo Executivo on Load', () => {
 
   test('resumo executivo auto-generates on page load without user clicking', async ({ page }) => {
-    await authenticate(page);
-    const resumoHeading = page.locator('text=Resumo Executivo');
-    await expect(resumoHeading).toBeVisible({ timeout: 30000 });
+    test.setTimeout(60000);
+    // Clear localStorage so the app starts with placeholder (no saved state)
+    await page.goto('/');
+    await page.evaluate(() => localStorage.clear());
+    // Re-authenticate from clean state
+    const passwordInput = page.locator('input[type="password"]');
+    await passwordInput.waitFor({ timeout: 5000 });
+    await passwordInput.fill(PASSWORD);
+    await passwordInput.press('Enter');
+    await page.locator('aside').first().waitFor({ timeout: 15000 });
     const summaryText = page.locator('.text-slate-300.leading-relaxed');
-    await expect(summaryText).toBeVisible({ timeout: 30000 });
+    await expect(summaryText).toBeVisible({ timeout: 10000 });
+    // Wait for auto-trigger to replace both possible placeholder values (Estado restaurado. / Sistema pronto...)
+    await expect(summaryText).not.toHaveText(/Sistema pronto|Estado restaurado/, { timeout: 50000 });
     const text = await summaryText.textContent();
-    expect(text).not.toBe('Sistema pronto. Carregando memória...');
-    expect(text!.length).toBeGreaterThan(20);
+    // A real summary from Claude should be at least 50 characters
+    expect(text!.length).toBeGreaterThan(50);
   });
 });
