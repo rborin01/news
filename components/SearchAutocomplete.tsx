@@ -32,10 +32,12 @@ export const SearchAutocomplete: React.FC<SearchAutocompleteProps> = ({
   const containerRef = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Sync inputValue when searchQuery is reset externally (e.g. Escape)
+  // Sync inputValue when searchQuery is reset externally (e.g. top-bar clear)
   useEffect(() => {
     if (searchQuery === '' && inputValue !== '') {
-      // Only sync down if external clear happened (not from our own clear)
+      setInputValue('');
+      setSuggestions([]);
+      setIsOpen(false);
     }
   }, [searchQuery]);
 
@@ -162,7 +164,7 @@ export const SearchAutocomplete: React.FC<SearchAutocompleteProps> = ({
         <input
           data-testid="search-autocomplete-input"
           type="text"
-          placeholder="Buscar noticias..."
+          placeholder="Buscar notícias..."
           value={inputValue}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
