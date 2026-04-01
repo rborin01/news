@@ -192,6 +192,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
         setMinScoreRodrigo={setMinScoreRodrigo}
         filteredNewsCount={filteredNews.length}
         queueStats={queueStats ?? null}
+        allNews={normalizedNews}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
       />
 
       <main className="flex-1 md:ml-64 flex flex-col lg:flex-row h-screen overflow-hidden">

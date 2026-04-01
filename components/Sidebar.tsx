@@ -3,6 +3,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { LayoutGrid, Lock, Sprout, Cpu, Building2, DollarSign, Globe, ListFilter, Download, Upload, Terminal, AlertCircle, Loader2, FileText, Trash2, Siren, Scale, ShieldAlert, Newspaper, Briefcase, Clapperboard, Trophy, HeartPulse, Microscope, Bot, History, Save, HardDrive } from 'lucide-react';
 import { exportDatabase, importDatabase, wipeDatabase, saveSnapshot, listSnapshots, loadSnapshot, deleteSnapshot } from '../db';
 import { IntelligenceReport, NewsAnalysis, MemorySnapshot } from '../types';
+import { SearchAutocomplete } from './SearchAutocomplete';
 
 interface SidebarProps {
   categories: string[];
@@ -21,6 +22,9 @@ interface SidebarProps {
   setMinScoreRodrigo: (n: number) => void;
   filteredNewsCount: number;
   queueStats: { pending: number; processing: number; done: number; error: number } | null;
+  allNews: NewsAnalysis[];
+  searchQuery: string;
+  setSearchQuery: (q: string) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -28,7 +32,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     minPersonalRelevance, setMinPersonalRelevance,
     minNationalRelevance, setMinNationalRelevance,
     setRelevanceMode, onOpenSystemMonitor, onDataImported,
-    minScoreRodrigo, setMinScoreRodrigo, filteredNewsCount, queueStats
+    minScoreRodrigo, setMinScoreRodrigo, filteredNewsCount, queueStats,
+    allNews, searchQuery, setSearchQuery,
 }) => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -145,6 +150,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <nav className="flex-1 overflow-y-auto py-4 pr-4 space-y-1 custom-scrollbar">
             
             <div className="px-6 pb-2 pt-2 text-xs font-bold text-slate-400 uppercase tracking-wider">Feeds & Categorias</div>
+            <SearchAutocomplete
+              allNews={allNews}
+              categories={categories}
+              searchQuery={searchQuery}
+              setSearchQuery={setSearchQuery}
+              onSelectCategory={onSelectCategory}
+            />
             <SidebarItem icon={LayoutGrid} label="Todos os Itens" active={selectedCategory === 'Todos'} onClick={() => onSelectCategory('Todos')} />
             
             {categories.filter(c => c !== 'Todos').map(cat => (
