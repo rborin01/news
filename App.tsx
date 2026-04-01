@@ -318,6 +318,18 @@ function App() {
     }
   };
 
+  // W31: Auto-generate Resumo Executivo on first load (lives in App.tsx to avoid stale closures)
+  const autoSummaryRef = useRef(false);
+  useEffect(() => {
+    if (autoSummaryRef.current) return;
+    if (report.news.length === 0) return;
+    const isPlaceholder = !report.summary || report.summary === 'Sistema pronto. Carregando memória...' || report.summary.length < 20;
+    if (isPlaceholder) {
+      autoSummaryRef.current = true;
+      handleUpdateSummary();
+    }
+  }, [report.news, report.summary, handleUpdateSummary]);
+
   const handleRefreshNews = async (topic: string, aiConfig: AIConfig) => {
     setLoading(true);
     setLoadingTask(`Analisando: ${topic}`);
