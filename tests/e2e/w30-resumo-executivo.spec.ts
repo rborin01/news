@@ -9,7 +9,7 @@ import { test, expect } from '@playwright/test';
 import { SUPABASE_URL, SUPABASE_ANON_KEY, EDGE_FUNCTION_URL } from './supabase-test-config';
 
 // Set TRUEPRESS_PASSWORD env var before running UI auth tests
-const PASSWORD = process.env.TRUEPRESS_PASSWORD || '';
+const PASSWORD = process.env.TRUEPRESS_PASSWORD || 'rodrigo';
 
 // ==================== Fix 1: Resumo Executivo via Edge Function ====================
 
@@ -89,30 +89,19 @@ test.describe('W30 — Test authentication with correct password', () => {
   test('intelligence tests can authenticate with password rodrigo', async ({ page }) => {
     await page.goto('/');
     const passwordInput = page.locator('input[type="password"]');
-
-    if (await passwordInput.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await passwordInput.fill(PASSWORD);
-      await passwordInput.press('Enter');
-    }
-
-    await expect(
-      page.getByText('PRESS WATCH').or(page.getByText('DASHBOARD')).first()
-    ).toBeVisible({ timeout: 15000 });
+    await passwordInput.waitFor({ timeout: 5000 });
+    await passwordInput.fill(PASSWORD);
+    await passwordInput.press('Enter');
+    await page.locator('aside').first().waitFor({ timeout: 15000 });
   });
 
   test('own-press page is accessible after auth', async ({ page }) => {
     await page.goto('/');
     const passwordInput = page.locator('input[type="password"]');
-
-    if (await passwordInput.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await passwordInput.fill(PASSWORD);
-      await passwordInput.press('Enter');
-    }
-
-    await expect(
-      page.getByText('PRESS WATCH').or(page.getByText('DASHBOARD')).first()
-    ).toBeVisible({ timeout: 15000 });
-
+    await passwordInput.waitFor({ timeout: 5000 });
+    await passwordInput.fill(PASSWORD);
+    await passwordInput.press('Enter');
+    await page.locator('aside').first().waitFor({ timeout: 15000 });
     await page.getByText('MINHA IMPRENSA').first().click();
     await expect(page.getByText('Minha Imprensa').first()).toBeVisible({ timeout: 8000 });
   });
