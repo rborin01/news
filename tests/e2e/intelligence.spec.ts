@@ -10,7 +10,7 @@ async function login(page: any) {
     await passwordInput.press('Enter');
   }
   await expect(
-    page.getByText('PRESS WATCH').or(page.getByText('DASHBOARD'))
+    page.getByText('PRESS WATCH').or(page.getByText('DASHBOARD')).first()
   ).toBeVisible({ timeout: 15000 });
 }
 
@@ -36,7 +36,7 @@ test.describe('Intelligence Hub', () => {
 
   test('should switch to AI ORIGINALS tab', async ({ page }) => {
     await page.getByText('AI ORIGINALS').click();
-    await expect(page.getByText('Investigações')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Investigações').first()).toBeVisible({ timeout: 5000 });
   });
 
   test('should switch to DATA ROOM tab', async ({ page }) => {
@@ -46,7 +46,7 @@ test.describe('Intelligence Hub', () => {
 
   test('should switch to MINHA IMPRENSA tab', async ({ page }) => {
     await page.getByText('MINHA IMPRENSA').click();
-    await expect(page.getByText('Minha Imprensa')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Minha Imprensa').first()).toBeVisible({ timeout: 5000 });
   });
 
   test('should filter news by text search', async ({ page }) => {
@@ -63,7 +63,7 @@ test.describe('Intelligence Hub', () => {
   });
 
   test('should display score filter slider', async ({ page }) => {
-    const slider = page.locator('input[type="range"]');
+    const slider = page.locator('input[type="range"]').first();
     await expect(slider).toBeVisible({ timeout: 5000 });
   });
 

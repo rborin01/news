@@ -10,23 +10,24 @@ async function loginAndGoToOwnPress(page: any) {
     await passwordInput.press('Enter');
   }
   await expect(
-    page.getByText('PRESS WATCH').or(page.getByText('DASHBOARD'))
+    page.getByText('PRESS WATCH').or(page.getByText('DASHBOARD')).first()
   ).toBeVisible({ timeout: 15000 });
   await page.getByText('MINHA IMPRENSA').click();
-  await expect(page.getByText('Minha Imprensa')).toBeVisible({ timeout: 8000 });
+  await expect(page.getByText('Minha Imprensa').first()).toBeVisible({ timeout: 8000 });
 }
 
 test.describe('Own Press - Minha Imprensa', () => {
   test.beforeEach(async ({ page }) => { await loginAndGoToOwnPress(page); });
 
   test('should display Own Press panel', async ({ page }) => {
-    await expect(page.getByText('Minha Imprensa')).toBeVisible();
-    await expect(page.getByText('Gerar Novo Artigo')).toBeVisible();
+    await expect(page.getByText('Minha Imprensa').first()).toBeVisible();
+    // 'Gerar Artigo' button is the primary action in OwnPressPanel
+    await expect(page.getByRole('button', { name: /Gerar Artigo/ })).toBeVisible();
   });
 
   test('should have topic input and generate button', async ({ page }) => {
-    const topicInput = page.locator('input[placeholder*="Tema"]');
-    await expect(topicInput).toBeVisible();
+    // Label 'Tema / Pauta' is rendered above the topic input in OwnPressPanel
+    await expect(page.getByText('Tema / Pauta')).toBeVisible();
     const generateBtn = page.getByRole('button', { name: /Gerar Artigo/ });
     await expect(generateBtn).toBeVisible();
   });
@@ -44,14 +45,14 @@ test.describe('Own Press - Minha Imprensa', () => {
   });
 
   test('should enable generate button when topic is filled', async ({ page }) => {
-    const topicInput = page.locator('input[placeholder*="Tema"]');
+    const topicInput = page.locator('input[placeholder*="Impacto"]');
     await topicInput.fill('IA no Agronegocio');
     const generateBtn = page.getByRole('button', { name: /Gerar Artigo/ });
     await expect(generateBtn).toBeEnabled();
   });
 
   test('should show articles count section', async ({ page }) => {
-    await expect(page.getByText(/Artigos/)).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/Artigos/).first()).toBeVisible({ timeout: 10000 });
   });
 
   test('should show empty state when no articles', async ({ page }) => {
@@ -62,7 +63,7 @@ test.describe('Own Press - Minha Imprensa', () => {
 
   test('should generate article and show in list', async ({ page }) => {
     test.setTimeout(60000);
-    const topicInput = page.locator('input[placeholder*="Tema"]');
+    const topicInput = page.locator('input[placeholder*="Impacto"]');
     await topicInput.fill('Impacto da IA no Agronegocio Brasileiro 2026');
     const generateBtn = page.getByRole('button', { name: /Gerar Artigo/ });
     await generateBtn.click();
