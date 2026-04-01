@@ -16,14 +16,19 @@ interface SidebarProps {
   setMinNationalRelevance: (n: number) => void;
   setRelevanceMode: (mode: 'personal' | 'national') => void;
   onOpenSystemMonitor: () => void;
-  onDataImported: (news: NewsAnalysis[], report?: IntelligenceReport) => void; 
+  onDataImported: (news: NewsAnalysis[], report?: IntelligenceReport) => void;
+  minScoreRodrigo: number;
+  setMinScoreRodrigo: (n: number) => void;
+  filteredNewsCount: number;
+  queueStats: { pending: number; processing: number; done: number; error: number } | null;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ 
+export const Sidebar: React.FC<SidebarProps> = ({
     categories, selectedCategory, onSelectCategory, totalNews,
     minPersonalRelevance, setMinPersonalRelevance,
     minNationalRelevance, setMinNationalRelevance,
-    setRelevanceMode, onOpenSystemMonitor, onDataImported
+    setRelevanceMode, onOpenSystemMonitor, onDataImported,
+    minScoreRodrigo, setMinScoreRodrigo, filteredNewsCount, queueStats
 }) => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -182,6 +187,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
                  )}
             </div>
 
+            {queueStats && (
+              <div className="px-4 pt-4">
+                <div data-testid="queue-stats-sidebar" className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Fila de Processamento</div>
+                  <div className="grid grid-cols-3 gap-1 text-center text-[9px] font-bold">
+                    <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 rounded px-1 py-1.5">
+                      <div className="text-sm font-black">{queueStats.pending}</div>
+                      <div>Pendente</div>
+                    </div>
+                    <div className="bg-blue-50 border border-blue-200 text-blue-700 rounded px-1 py-1.5">
+                      <div className="text-sm font-black">{queueStats.processing}</div>
+                      <div>Processando</div>
+                    </div>
+                    <div className="bg-green-50 border border-green-200 text-green-700 rounded px-1 py-1.5">
+                      <div className="text-sm font-black">{queueStats.done}</div>
+                      <div>Concluidos</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="px-6 pb-2 pt-6 text-xs font-bold text-slate-400 uppercase tracking-wider">Filtro de Relevância</div>
             <div className="px-6 py-4 space-y-4 bg-slate-50 mx-2 rounded-lg border border-slate-100 mb-4">
                 <div>
@@ -189,12 +216,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
                         <span>Impacto Pessoal</span>
                         <span>{minPersonalRelevance}%</span>
                     </div>
-                    <input 
+                    <input
                         type="range" min="0" max="90" step="10"
                         value={minPersonalRelevance}
                         onChange={(e) => { setMinPersonalRelevance(Number(e.target.value)); setRelevanceMode('personal'); }}
                         className="w-full h-1 bg-slate-300 rounded-lg appearance-none cursor-pointer accent-blue-600"
                     />
+                </div>
+                <div>
+                    <div className="flex justify-between text-[10px] font-bold uppercase text-slate-500 mb-1">
+                        <span>Score Rodrigo</span>
+                        <span>{minScoreRodrigo}%</span>
+                    </div>
+                    <input
+                        data-testid="score-filter-slider"
+                        type="range" min="0" max="100" step="5"
+                        value={minScoreRodrigo}
+                        onChange={(e) => setMinScoreRodrigo(Number(e.target.value))}
+                        className="w-full h-1 bg-slate-300 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                    />
+                    <div data-testid="score-filter-count" className="text-[9px] text-slate-400 mt-1 text-right">
+                        {filteredNewsCount} artigos (score &ge; {minScoreRodrigo})
+                    </div>
                 </div>
             </div>
 

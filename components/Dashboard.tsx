@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { IntelligenceReport, NewsAnalysis, ExternalAnalysisResult, AiInvestigation, MarketSentiment, RawDataResult, DEFAULT_CATEGORIES, CANONICAL_CATEGORIES, AIConfig, OllamaModel } from '../types';
 import { generateDeepAnalysis, generateMarketSentiment } from '../services/geminiService';
 import { getAllRawData } from '../db';
@@ -71,6 +71,19 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [marketSentiment, setMarketSentiment] = useState<MarketSentiment | null>(data?.lastSentiment || null);
   const [rawDataList, setRawDataList] = useState<RawDataResult[]>(data?.rawData || []);
   const [copiedShare, setCopiedShare] = useState(false);
+
+  // W31: Auto-generate Resumo Executivo on first load
+  const autoSummaryTriggered = useRef(false);
+  useEffect(() => {
+    if (autoSummaryTriggered.current) return;
+    if (allNews.length === 0) return;
+    const summary = data?.summary || '';
+    const isPlaceholder = !summary || summary === 'Sistema pronto. Carregando memória...' || summary.length < 20;
+    if (isPlaceholder) {
+      autoSummaryTriggered.current = true;
+      onUpdateSummary();
+    }
+  }, [allNews, data?.summary, onUpdateSummary]);
 
   // System Status
   const [localModels, setLocalModels] = useState<OllamaModel[]>([]);
@@ -188,6 +201,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
         setRelevanceMode={setRelevanceMode}
         onOpenSystemMonitor={onOpenSystemMonitor}
         onDataImported={onDataImported}
+        minScoreRodrigo={minScoreRodrigo}
+        setMinScoreRodrigo={setMinScoreRodrigo}
+        filteredNewsCount={filteredNews.length}
+        queueStats={queueStats ?? null}
       />
 
       <main className="flex-1 md:ml-64 flex flex-col lg:flex-row h-screen overflow-hidden">
