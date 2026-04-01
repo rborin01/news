@@ -57,9 +57,7 @@ test.describe('Intelligence Hub', () => {
   });
 
   test('should display queue stats widget', async ({ page }) => {
-    await expect(
-      page.getByText('Pendente').or(page.getByText('Prontos'))
-    ).toBeVisible({ timeout: 5000 });
+    await expect(page.locator('[data-testid="queue-stats-sidebar"]')).toBeVisible({ timeout: 5000 });
   });
 
   test('should display score filter slider', async ({ page }) => {
