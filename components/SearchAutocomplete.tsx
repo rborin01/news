@@ -106,12 +106,31 @@ export const SearchAutocomplete: React.FC<SearchAutocompleteProps> = ({
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!isOpen) {
-      if (e.key === 'Enter') {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      // Cancel any pending debounce so dropdown won't open after Enter
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (isOpen && highlightIndex >= 0 && suggestions[highlightIndex]) {
+        selectSuggestion(suggestions[highlightIndex]);
+      } else {
+        setIsOpen(false);
+        setSuggestions([]);
         setSearchQuery(inputValue);
       }
       return;
     }
+
+    if (e.key === 'Escape') {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      setIsOpen(false);
+      setSuggestions([]);
+      setInputValue('');
+      setSearchQuery('');
+      setHighlightIndex(-1);
+      return;
+    }
+
+    if (!isOpen) return;
 
     if (e.key === 'ArrowDown') {
       e.preventDefault();
@@ -119,20 +138,6 @@ export const SearchAutocomplete: React.FC<SearchAutocompleteProps> = ({
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       setHighlightIndex(prev => (prev > 0 ? prev - 1 : -1));
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (highlightIndex >= 0 && suggestions[highlightIndex]) {
-        selectSuggestion(suggestions[highlightIndex]);
-      } else {
-        setIsOpen(false);
-        setSearchQuery(inputValue);
-      }
-    } else if (e.key === 'Escape') {
-      setIsOpen(false);
-      setSuggestions([]);
-      setInputValue('');
-      setSearchQuery('');
-      setHighlightIndex(-1);
     }
   };
 
