@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 
+// Set TRUEPRESS_PASSWORD env var to authenticate — fallback empty string skips auth step
 const PASSWORD = process.env.TRUEPRESS_PASSWORD || '';
 
 async function loginAndGoToOwnPress(page: any) {

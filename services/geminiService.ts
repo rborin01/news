@@ -442,15 +442,13 @@ export const fetchInvestigationBatch = async (topic: string, aiConfig: AIConfig)
 
 export const generateDailySummary = async (newsItems: NewsAnalysis[], aiConfig: AIConfig) => {
     const topNews = newsItems.slice(0, 15).map(n => `- ${n.title}: ${n.truth}`).join('\n');
-    try { 
-        // Gemini 3 Pro para um resumo executivo de altíssimo nível
-        const res = await ai.models.generateContent({ 
-            model: 'gemini-2.5-pro-preview-03-25', 
-            contents: `Atue como Conselheiro Estratégico. Resuma executivamente para Rodrigo Borin:\n${topNews}`,
-            config: { thinkingConfig: { thinkingBudget: 1024 } }
-        });
-        return res.text || "Resumo indisponível."; 
-    } catch(e) { return "Resumo indisponível."; }
+    const prompt = `Atue como Conselheiro Estratégico. Resuma executivamente para Rodrigo Borin:\n${topNews}`;
+    try {
+        return await generateWithGemini(prompt);
+    } catch (e) {
+        console.error('[generateDailySummary] error:', e);
+        return 'Resumo indisponível.';
+    }
 };
 
 export const generateMarketSentiment = async (context: string, aiConfig: AIConfig): Promise<MarketSentiment | null> => {
