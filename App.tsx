@@ -10,6 +10,7 @@ import { indexNewsBatch, semanticSearch, pruneOrphanEmbeddings } from './service
 import { runFullPipeline, processQueue, fetchProcessedNews, getQueueStats, QueueStats } from './services/newsQueue';
 import { RSS_FEEDS } from './services/rssFeeds';
 import VoiceChat from './src/pages/VoiceChat';
+import { useAutoPilot } from './hooks/useAutoPilot';
 
 const ROTATION_QUEUE = [
   { type: 'COMMODITIES', label: 'Cotações Físicas (Atualização)' },
@@ -85,6 +86,7 @@ function App() {
 
   useEffect(() => { localStorage.setItem('truepress_ai_config', JSON.stringify(aiConfig)); }, [aiConfig]);
 
+  const autopilot = useAutoPilot();
   const [autoRadar, setAutoRadar] = useState(() => localStorage.getItem('truepress_autoradar') === 'true');
   const [nextAutoTaskIndex, setNextAutoTaskIndex] = useState(0);
   const [autoPilotStatus, setAutoPilotStatus] = useState<string>('Inativo');
@@ -468,6 +470,7 @@ function App() {
         onRagSearch={handleRagSearch}
         queueStats={queueStats}
         cotacoes={cotacoes}
+        autopilot={autopilot}
       />
     </div>
   );

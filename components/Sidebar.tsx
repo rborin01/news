@@ -5,6 +5,15 @@ import { exportDatabase, importDatabase, wipeDatabase, saveSnapshot, listSnapsho
 import { IntelligenceReport, NewsAnalysis, MemorySnapshot } from '../types';
 import { SearchAutocomplete } from './SearchAutocomplete';
 
+interface AutoPilotProps {
+  enabled: boolean;
+  toggle: () => void;
+  countdown: string;
+  lastRunTime: string;
+  isRunning: boolean;
+  lastResult: string;
+}
+
 interface SidebarProps {
   categories: string[];
   selectedCategory: string;
@@ -25,6 +34,7 @@ interface SidebarProps {
   allNews: NewsAnalysis[];
   searchQuery: string;
   setSearchQuery: (q: string) => void;
+  autopilot: AutoPilotProps;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -33,7 +43,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     minNationalRelevance, setMinNationalRelevance,
     setRelevanceMode, onOpenSystemMonitor, onDataImported,
     minScoreRodrigo, setMinScoreRodrigo, filteredNewsCount, queueStats,
-    allNews, searchQuery, setSearchQuery,
+    allNews, searchQuery, setSearchQuery, autopilot,
 }) => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -218,6 +228,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   </div>
                 </div>
             </div>
+            {/* W33: Piloto Automático */}
+            <div className="px-4 pt-2">
+              <div data-testid="autopilot-status" className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                <button
+                  data-testid="autopilot-toggle"
+                  onClick={autopilot.toggle}
+                  className={`w-full flex items-center justify-between px-2 py-1.5 rounded text-xs font-bold transition-colors ${
+                    autopilot.enabled
+                      ? 'bg-green-100 text-green-700 border border-green-300'
+                      : 'bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200'
+                  }`}
+                >
+                  <span className="flex items-center gap-1.5">
+                    {autopilot.isRunning ? <Loader2 size={12} className="animate-spin" /> : <Bot size={12} />}
+                    Piloto Automático
+                  </span>
+                  <span className="text-[9px] uppercase">{autopilot.enabled ? 'ON' : 'OFF'}</span>
+                </button>
+                {autopilot.enabled && autopilot.countdown && (
+                  <div data-testid="autopilot-countdown" className="text-[10px] text-slate-500 mt-1.5 text-center">
+                    Próxima coleta em {autopilot.countdown}
+                  </div>
+                )}
+                {autopilot.lastRunTime && (
+                  <div className="text-[9px] text-slate-400 mt-1 text-center">
+                    Última coleta: {autopilot.lastRunTime}
+                    {autopilot.lastResult && ` (${autopilot.lastResult})`}
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="px-6 pb-2 pt-6 text-xs font-bold text-slate-400 uppercase tracking-wider">Filtro de Relevância</div>
             <div className="px-6 py-4 space-y-4 bg-slate-50 mx-2 rounded-lg border border-slate-100 mb-4">
                 <div>

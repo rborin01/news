@@ -43,6 +43,14 @@ interface DashboardProps {
   onRagSearch: (query: string) => Promise<any[]>;
   queueStats: { pending: number; processing: number; done: number; error: number } | null;
   cotacoes?: { dolar: string; euro: string; bitcoin: string; lastUpdate: string } | null;
+  autopilot: {
+    enabled: boolean;
+    toggle: () => void;
+    countdown: string;
+    lastRunTime: string;
+    isRunning: boolean;
+    lastResult: string;
+  };
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
@@ -50,7 +58,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onRefreshNews, onRefreshInvest, onRefreshCommodities, onUpdateSummary,
   autoRadar, toggleAutoRadar, autoPilotStatus, onDeepScan, onOpenSystemMonitor,
   onDataImported, aiConfig, setAiConfig, ragStatus, onRagIndex, onRagSearch,
-  queueStats, cotacoes,
+  queueStats, cotacoes, autopilot,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
   const [viewMode, setViewMode] = useState<'media' | 'ai' | 'data' | 'ownpress'>('media');
@@ -195,6 +203,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         allNews={normalizedNews}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
+        autopilot={autopilot}
       />
 
       <main className="flex-1 md:ml-64 flex flex-col lg:flex-row h-screen overflow-hidden">
