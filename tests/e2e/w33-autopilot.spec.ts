@@ -1,7 +1,5 @@
 /**
  * W33 -- Piloto Automatico (Sidebar Auto-Collect Toggle)
- *
- * RED phase -- written before implementation.
  */
 
 import { test, expect } from '@playwright/test';
@@ -17,10 +15,16 @@ async function authenticate(page: any) {
   await page.locator('aside').first().waitFor({ timeout: 15000 });
 }
 
+async function scrollToAutopilot(page: any) {
+  // Sidebar is scrollable — scroll the autopilot widget into view
+  await page.locator('[data-testid="autopilot-status"]').scrollIntoViewIfNeeded();
+}
+
 test.describe('W33 -- Piloto Automatico', () => {
 
   test('autopilot toggle button exists in sidebar with correct data-testid', async ({ page }) => {
     await authenticate(page);
+    await scrollToAutopilot(page);
     const toggle = page.locator('[data-testid="autopilot-toggle"]');
     await expect(toggle).toBeVisible({ timeout: 5000 });
   });
@@ -29,6 +33,7 @@ test.describe('W33 -- Piloto Automatico', () => {
     await page.goto('/');
     await page.evaluate(() => localStorage.removeItem('truepress_autopilot'));
     await authenticate(page);
+    await scrollToAutopilot(page);
     const countdown = page.locator('[data-testid="autopilot-countdown"]');
     await expect(countdown).not.toBeVisible({ timeout: 3000 });
   });
@@ -37,6 +42,7 @@ test.describe('W33 -- Piloto Automatico', () => {
     await page.goto('/');
     await page.evaluate(() => localStorage.removeItem('truepress_autopilot'));
     await authenticate(page);
+    await scrollToAutopilot(page);
     const toggle = page.locator('[data-testid="autopilot-toggle"]');
     await toggle.click();
     const countdown = page.locator('[data-testid="autopilot-countdown"]');
@@ -48,6 +54,7 @@ test.describe('W33 -- Piloto Automatico', () => {
     await page.goto('/');
     await page.evaluate(() => localStorage.removeItem('truepress_autopilot'));
     await authenticate(page);
+    await scrollToAutopilot(page);
     const toggle = page.locator('[data-testid="autopilot-toggle"]');
     await toggle.click();
     const stored = await page.evaluate(() => localStorage.getItem('truepress_autopilot'));
@@ -59,6 +66,7 @@ test.describe('W33 -- Piloto Automatico', () => {
 
   test('autopilot status container exists with data-testid', async ({ page }) => {
     await authenticate(page);
+    await scrollToAutopilot(page);
     const status = page.locator('[data-testid="autopilot-status"]');
     await expect(status).toBeVisible({ timeout: 5000 });
   });
@@ -67,6 +75,7 @@ test.describe('W33 -- Piloto Automatico', () => {
     await page.goto('/');
     await page.evaluate(() => localStorage.removeItem('truepress_autopilot'));
     await authenticate(page);
+    await scrollToAutopilot(page);
     const toggle = page.locator('[data-testid="autopilot-toggle"]');
     await toggle.click();
     const countdown = page.locator('[data-testid="autopilot-countdown"]');
@@ -79,6 +88,7 @@ test.describe('W33 -- Piloto Automatico', () => {
     await page.goto('/');
     await page.evaluate(() => localStorage.setItem('truepress_autopilot', 'true'));
     await authenticate(page);
+    await scrollToAutopilot(page);
     const countdown = page.locator('[data-testid="autopilot-countdown"]');
     await expect(countdown).toBeVisible({ timeout: 10000 });
   });
