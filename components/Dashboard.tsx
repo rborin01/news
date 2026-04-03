@@ -18,6 +18,7 @@ import { checkPythonHealth } from '../services/pythonBridge';
 import { Globe, Newspaper, Bot, Filter, AlertCircle, FileSpreadsheet, Sparkles, Pen, Share2, Check } from 'lucide-react';
 import { callGeminiProxy } from '../services/supabaseClient';
 import { IntelDashboard } from './IntelDashboard';
+import { IndicesBorinPanel } from './IndicesBorinPanel';
 
 interface DashboardProps {
   data: IntelligenceReport | null;
@@ -315,6 +316,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
               {viewMode === 'data' && (
                 <div className="space-y-6">
+                  <IndicesBorinPanel />
                   <div className="flex items-center justify-between mb-6">
                     <div className="flex items-center gap-2">
                       <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></div>

@@ -22,6 +22,27 @@ const corsHeaders = {
         "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// ── W34: Borin Index Tags — deterministic category→indices mapping ──────────
+const BORIN_TAG_MAP: Record<string, string[]> = {
+        'Economia & Finanças': ['IIR','IREF','IMP','ICD'],
+        'Agronegócio & Commodities': ['IIR','IAN'],
+        'Política & STF': ['IREF','ICR','IGE','ICN','ICD'],
+        'Negócios & Empreendedorismo': ['ICR','IAN','IMP'],
+        'Tecnologia & IA': ['IAN','IMP'],
+        'Segurança': ['IGE','ICN','ICD'],
+        'Infraestrutura & Imobiliário': ['IGE','IREF'],
+        'Liberdade & Censura': ['ICN','IGE'],
+        'Saúde & Ciência': ['IREF','IAN'],
+        'Energia': ['IIR','IGE'],
+        'Meio Ambiente': ['IGE','IAN'],
+        'Geopolítica & Guerra': ['IPR','IGE'],
+        'Mercado Financeiro & Forex': ['IIR','IMP','ICD'],
+        'Internacional': ['IPR'],
+        'Outros': [],
+        'Entretenimento & Cultura': [],
+        'Esportes': [],
+};
+
 // ── Parse JSON robusto ───────────────────────────────────────────────────────
 function parseJSON(raw: string): any {
         const clean = raw.replace(/```json\s*/gi, "").replace(/```\s*/gi, "").trim();
@@ -161,6 +182,17 @@ async function processQueue(batchSize = 20): Promise<any> {
               });
 
               if (insertErr) throw new Error(`Insert: ${insertErr.message}`);
+
+              // W34: tag borin indices for newly processed article
+              const borinTags = BORIN_TAG_MAP[safe.category] ?? [];
+              if (borinTags.length > 0) {
+                    const { data: newArt } = await supabase.from('processed_news')
+                          .select('id').eq('raw_id', item.id).limit(1).single();
+                    if (newArt) {
+                          await supabase.from('processed_news')
+                                .update({ borin_index_tags: borinTags }).eq('id', newArt.id);
+                    }
+              }
 
               await supabase.from("raw_news").update({ status: "done" }).eq("id", item.id);
                       results.push({ id: item.id, status: "done", title: safe.title, model: safe.model_used });
@@ -324,6 +356,96 @@ CONTEXTO: ${(research_context ?? "").substring(0, 1000)}`;
 
                       if (insertErr) throw new Error(insertErr.message);
                       return json(inserted);
+          }
+
+          if (action === "snapshot_borin_daily") {
+                      const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+                      const INDEX_CODES = ['IIR','IREF','ICR','IGE','ICN','IAN','IMP','ICD','IPR'];
+
+                      // Default to today in UTC-3 (Brasilia)
+                      let targetDate = body.date;
+                      if (!targetDate) {
+                            const now = new Date();
+                            const utc3 = new Date(now.getTime() - 3 * 60 * 60 * 1000);
+                            targetDate = utc3.toISOString().split('T')[0];
+                      }
+
+                      let snapshotsCreated = 0;
+
+                      for (const code of INDEX_CODES) {
+                            // Count articles + averages for this index on target date
+                            const dayStart = new Date(`${targetDate}T03:00:00.000Z`);
+                            const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+                            const { data: articles } = await supabase
+                                  .from('processed_news')
+                                  .select('id, score_rodrigo, score_brasil')
+                                  .contains('borin_index_tags', [code])
+                                  .gte('processed_at', dayStart.toISOString())
+                                  .lt('processed_at', dayEnd.toISOString());
+
+                            const count = articles?.length ?? 0;
+                            let avgRodrigo: number | null = null;
+                            let avgBrasil: number | null = null;
+                            let topArticles: string[] = [];
+                            let sentiment: string = 'neutral';
+
+                            if (count > 0) {
+                                  const scores = articles!;
+                                  avgRodrigo = Math.round(
+                                        (scores.reduce((s: number, a: any) => s + (Number(a.score_rodrigo) || 0), 0) / count) * 100
+                                  ) / 100;
+                                  avgBrasil = Math.round(
+                                        (scores.reduce((s: number, a: any) => s + (Number(a.score_brasil) || 0), 0) / count) * 100
+                                  ) / 100;
+
+                                  // Top 3 by score_rodrigo DESC
+                                  topArticles = scores
+                                        .sort((a: any, b: any) => (Number(b.score_rodrigo) || 0) - (Number(a.score_rodrigo) || 0))
+                                        .slice(0, 3)
+                                        .map((a: any) => a.id);
+
+                                  // Sentiment classification
+                                  if (avgRodrigo >= 65) sentiment = 'positive';
+                                  else if (avgRodrigo <= 35) sentiment = 'negative';
+                                  else sentiment = 'neutral';
+                            }
+
+                            const { error: upsertErr } = await supabase
+                                  .from('borin_indices_daily')
+                                  .upsert({
+                                        date: targetDate,
+                                        index_code: code,
+                                        article_count: count,
+                                        avg_score_rodrigo: avgRodrigo,
+                                        avg_score_brasil: avgBrasil,
+                                        top_articles: topArticles,
+                                        sentiment_label: count > 0 ? sentiment : 'neutral',
+                                        snapshot_at: new Date().toISOString(),
+                                  }, { onConflict: 'date,index_code' });
+
+                            if (upsertErr) throw new Error(`Upsert ${code}: ${upsertErr.message}`);
+                            snapshotsCreated++;
+                      }
+
+                      return json({ snapshots_created: snapshotsCreated, date: targetDate });
+          }
+
+          if (action === "tag_borin_indices") {
+                    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
+                    const ids: string[] = body.article_ids ?? (body.article_id ? [body.article_id] : []);
+                    if (!ids.length) return json({ error: "article_id or article_ids required" }, 400);
+                    const { data: articles, error: fetchErr } = await supabase
+                          .from('processed_news').select('id,category').in('id', ids);
+                    if (fetchErr) throw new Error(fetchErr.message);
+                    if (!articles?.length) return json({ error: "No articles found", tagged: 0 }, 404);
+                    const results = [];
+                    for (const art of articles) {
+                          const tags = BORIN_TAG_MAP[art.category] ?? [];
+                          await supabase.from('processed_news')
+                                .update({ borin_index_tags: tags }).eq('id', art.id);
+                          results.push({ article_id: art.id, tags });
+                    }
+                    return json({ tagged: results.length, results });
           }
 
           if (action === "health") {
