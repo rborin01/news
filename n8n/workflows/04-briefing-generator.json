@@ -1,0 +1,109 @@
+{
+  "name": "04 - Briefing Generator (Webhook)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "briefing-generate",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/functions/v1/gemini-proxy",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "action", "value": "search" },
+            { "name": "query", "value": "={{ $json.body.keywords.join(' ') }}" },
+            { "name": "limit", "value": 15 }
+          ]
+        }
+      },
+      "id": "search-articles",
+      "name": "Search Relevant Articles",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/functions/v1/gemini-proxy",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"action\": \"generate\",\n  \"prompt\": \"Você é o True Press. Gere um briefing profissional personalizado para um(a) {{ $('Webhook Trigger').item.json.body.profession }} especialidade {{ $('Webhook Trigger').item.json.body.specialty }}.\\n\\nAnalise o impacto das seguintes notícias para este profissional:\\n{{ JSON.stringify($json.results || []) }}\\n\\nFormate em markdown com seções: DESTAQUES DO DIA, IMPACTO NA SUA ÁREA, AÇÃO RECOMENDADA.\"\n}"
+      },
+      "id": "generate-briefing",
+      "name": "Generate Briefing with AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/briefings",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=representation" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"user_id\": \"{{ $('Webhook Trigger').item.json.body.user_id }}\",\n  \"profession\": \"{{ $('Webhook Trigger').item.json.body.profession }}\",\n  \"specialty\": \"{{ $('Webhook Trigger').item.json.body.specialty }}\",\n  \"articles\": {{ JSON.stringify($('Search Relevant Articles').item.json.results || []) }},\n  \"analysis\": {{ JSON.stringify($json.text || '') }},\n  \"status\": \"done\"\n}"
+      },
+      "id": "save-briefing",
+      "name": "Save Briefing to Supabase",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { briefing_id: $json[0].id, status: 'done' } }}"
+      },
+      "id": "respond",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1120, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": { "main": [[{ "node": "Search Relevant Articles", "type": "main", "index": 0 }]] },
+    "Search Relevant Articles": { "main": [[{ "node": "Generate Briefing with AI", "type": "main", "index": 0 }]] },
+    "Generate Briefing with AI": { "main": [[{ "node": "Save Briefing to Supabase", "type": "main", "index": 0 }]] },
+    "Save Briefing to Supabase": { "main": [[{ "node": "Respond to Webhook", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": [{ "name": "truepress" }]
+}

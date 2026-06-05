@@ -1,0 +1,84 @@
+{
+  "name": "05 - Daily Digest Email (7h BRT)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 10 * * *" }]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger (10h UTC = 7h BRT)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/processed_news?select=title,summary,score_brasil,category,processed_at&order=processed_at.desc&limit=10",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_ANON_KEY }}" }
+          ]
+        }
+      },
+      "id": "fetch-top-news",
+      "name": "Fetch Top 10 News",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/functions/v1/gemini-proxy",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"action\": \"generate\",\n  \"prompt\": \"Você é o True Press. Crie um resumo executivo das notícias mais importantes do dia em formato de email HTML profissional. Use linguagem direta e factual. Destaque impactos econômicos e políticos. Notícias: {{ JSON.stringify($json) }}\"\n}"
+      },
+      "id": "generate-digest",
+      "name": "Generate Digest with AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [680, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.resend.com/emails",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "=Bearer {{ $env.RESEND_API_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"from\": \"True Press <digest@news.rodrigoborin.com>\",\n  \"to\": [\"rborin01@gmail.com\"],\n  \"subject\": \"True Press — Digest {{ $now.format('dd/MM/yyyy') }}\",\n  \"html\": \"{{ $json.text }}\"\n}"
+      },
+      "id": "send-email",
+      "name": "Send Email via Resend",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [900, 300]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (10h UTC = 7h BRT)": { "main": [[{ "node": "Fetch Top 10 News", "type": "main", "index": 0 }]] },
+    "Fetch Top 10 News": { "main": [[{ "node": "Generate Digest with AI", "type": "main", "index": 0 }]] },
+    "Generate Digest with AI": { "main": [[{ "node": "Send Email via Resend", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "tags": [{ "name": "truepress" }]
+}
