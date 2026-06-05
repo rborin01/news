@@ -1,0 +1,91 @@
+{
+  "name": "03 - Borin Indices",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 8 * * 0" }]
+        }
+      },
+      "id": "schedule-trigger-03",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [100, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/processed_news",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_ANON_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_ANON_KEY }}" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "select", "value": "category,level_1_domain,score_brasil,score_rodrigo,processed_at" },
+            { "name": "processed_at", "value": "gte.{{ $now.minus({days:7}).toISO() }}" },
+            { "name": "limit", "value": "1000" }
+          ]
+        },
+        "options": {}
+      },
+      "id": "http-get-news",
+      "name": "Get Processed News",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [350, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const news = $input.all().map(i => i.json);\n\nconst INDICES = {\n  'economia': 'ECO',\n  'politica': 'POL',\n  'tecnologia': 'TEC',\n  'saude': 'SAU',\n  'educacao': 'EDU',\n  'seguranca': 'SEG',\n  'meio_ambiente': 'AMB',\n  'internacional': 'INT',\n  'esportes': 'ESP'\n};\n\nconst grouped = {};\nfor (const article of news) {\n  const cat = (article.category || 'outros').toLowerCase().replace(/ /g, '_');\n  if (!grouped[cat]) grouped[cat] = { total: 0, count: 0 };\n  grouped[cat].total += Number(article.score_brasil) || 0;\n  grouped[cat].count += 1;\n}\n\nconst weekStart = new Date();\nweekStart.setDate(weekStart.getDate() - weekStart.getDay());\nweekStart.setHours(0, 0, 0, 0);\n\nconst results = [];\nfor (const [cat, code] of Object.entries(INDICES)) {\n  const data = grouped[cat] || { total: 0, count: 0 };\n  results.push({\n    json: {\n      index_code: code,\n      score: data.count > 0 ? Number((data.total / data.count).toFixed(2)) : 0,\n      article_count: data.count,\n      week_start: weekStart.toISOString()\n    }\n  });\n}\n\nreturn results;"
+      },
+      "id": "code-calc-indices",
+      "name": "Calculate Indices",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.SUPABASE_URL }}/rest/v1/borin_indices",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "={{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Authorization", "value": "=Bearer {{ $env.SUPABASE_SERVICE_ROLE_KEY }}" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "resolution=merge-duplicates" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "http-upsert-indices",
+      "name": "Upsert Indices",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [850, 300]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [[{ "node": "Get Processed News", "type": "main", "index": 0 }]]
+    },
+    "Get Processed News": {
+      "main": [[{ "node": "Calculate Indices", "type": "main", "index": 0 }]]
+    },
+    "Calculate Indices": {
+      "main": [[{ "node": "Upsert Indices", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "executionOrder": "v1" },
+  "_note": "Set SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY in n8n environment variables — never hardcode keys here."
+}

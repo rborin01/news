@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../services/supabaseClient';
+import { fetchBorinIndices, getLatestIndices } from '../services/borinIndicesService';
 import { BarChart3 } from 'lucide-react';
 import { IndicesBorinChart } from './IndicesBorinChart';
 import { IndicesBorinDrilldown } from './IndicesBorinDrilldown';
@@ -75,6 +76,10 @@ export const IndicesBorinPanel: React.FC = () => {
         } else {
           setSnapshots(data || []);
         }
+
+        // Pre-fetch weekly indices for downstream use
+        await getLatestIndices();
+        await fetchBorinIndices(52);
       } catch (e) {
         console.error('[IndicesBorinPanel] unexpected error:', e);
         setSnapshots([]);

@@ -1,6 +1,7 @@
 
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" }
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/sitemap-news.xml", "destination": "https://sfnvctljxidzueoutnxv.supabase.co/functions/v1/sitemap-news" }
   ]
 }
