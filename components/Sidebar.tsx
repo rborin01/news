@@ -35,6 +35,7 @@ interface SidebarProps {
   searchQuery: string;
   setSearchQuery: (q: string) => void;
   autopilot: AutoPilotProps;
+  onOpenPro: () => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -43,7 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     minNationalRelevance, setMinNationalRelevance,
     setRelevanceMode, onOpenSystemMonitor, onDataImported,
     minScoreRodrigo, setMinScoreRodrigo, filteredNewsCount, queueStats,
-    allNews, searchQuery, setSearchQuery, autopilot,
+    allNews, searchQuery, setSearchQuery, autopilot, onOpenPro,
 }) => {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -167,6 +168,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               setSearchQuery={setSearchQuery}
               onSelectCategory={onSelectCategory}
             />
+            <SidebarItem icon={Briefcase} label="True Press Pro" active={false} onClick={onOpenPro} />
             <SidebarItem icon={LayoutGrid} label="Todos os Itens" active={selectedCategory === 'Todos'} onClick={() => onSelectCategory('Todos')} />
             
             {categories.filter(c => c !== 'Todos').map(cat => (

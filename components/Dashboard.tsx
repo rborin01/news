@@ -10,6 +10,7 @@ import { CommodityForecast } from '../types';
 import { DeepAnalysisModal } from './DeepAnalysisModal';
 import { NeuralBridgeModal } from './NeuralBridgeModal';
 import { Sidebar } from './Sidebar';
+import BriefingPanel from './BriefingPanel';
 import { Header } from './Header';
 import { CommandCenter } from './CommandCenter';
 import { OwnPressPanel } from './OwnPressPanel';
@@ -72,6 +73,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const [minScoreRodrigo, setMinScoreRodrigo] = useState(0);
   const [speaking, setSpeaking] = useState(false);
   const [selectedNews, setSelectedNews] = useState<NewsAnalysis | null>(null);
+  const [isProOpen, setIsProOpen] = useState(false);
   const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
   const [isNeuralBridgeOpen, setIsNeuralBridgeOpen] = useState(false);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -205,6 +207,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
         autopilot={autopilot}
+        onOpenPro={() => setIsProOpen(true)}
       />
 
       <main className="flex-1 md:ml-64 flex flex-col lg:flex-row h-screen overflow-hidden">
@@ -369,6 +372,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       <DeepAnalysisModal isOpen={isAnalysisModalOpen} onClose={() => setIsAnalysisModalOpen(false)} loading={isAnalyzing} result={analysisResult} query={externalQuery} />
       <NeuralBridgeModal isOpen={isNeuralBridgeOpen} onClose={() => setIsNeuralBridgeOpen(false)} loading={isGeneratingSignal} sentiment={marketSentiment} onGenerate={handleGenerateSignal} />
       <NewsModal item={selectedNews} onClose={() => setSelectedNews(null)} />
+      <BriefingPanel isOpen={isProOpen} onClose={() => setIsProOpen(false)} />
     </div>
   );
 };
