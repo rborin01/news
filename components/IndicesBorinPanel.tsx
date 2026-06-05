@@ -1,10 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { supabase } from '../services/supabaseClient';
-import { fetchBorinIndices, getLatestIndices } from '../services/borinIndicesService';
+import {
+  fetchBorinIndices,
+  getLatestIndices,
+  type BorinIndex,
+} from '../services/borinIndicesService';
 import { BarChart3 } from 'lucide-react';
 import { IndicesBorinChart } from './IndicesBorinChart';
 import { IndicesBorinDrilldown } from './IndicesBorinDrilldown';
 
+// Mantido para compatibilidade com IndicesBorinChart, que consome esta forma.
+// A fonte real e a tabela `borin_indices` (semanal); fazemos o mapeamento abaixo.
 export interface DailySnapshot {
   id: string;
   date: string;
@@ -41,64 +46,81 @@ export const INDEX_COLORS: Record<string, string> = {
 };
 
 const INDEX_CODES = Object.keys(BORIN_INDICES);
+const HISTORY_WEEKS = 16;
 
-function sentimentEmoji(label: string | null): string {
-  if (!label) return '---';
-  const l = label.toLowerCase();
-  if (l === 'positive' || l === 'positivo') return '\u{1F60A}';
-  if (l === 'negative' || l === 'negativo') return '\u{1F61F}';
+// Sentimento derivado do score (schema nao possui campo de sentimento).
+function sentimentEmojiFromScore(score: number | null): string {
+  if (score === null || Number.isNaN(score)) return '\u{1F610}';
+  if (score >= 60) return '\u{1F60A}';
+  if (score <= 40) return '\u{1F61F}';
   return '\u{1F610}';
 }
 
+// Adapta os indices semanais reais para a forma que o chart espera.
+function toSnapshots(history: BorinIndex[]): DailySnapshot[] {
+  return history.map(row => ({
+    id: row.id,
+    date: row.week_start,
+    index_code: row.index_code,
+    article_count: row.article_count,
+    avg_score_rodrigo: row.score,
+    avg_score_brasil: null,
+    top_articles: null,
+    sentiment_label: null,
+  }));
+}
+
 export const IndicesBorinPanel: React.FC = () => {
-  const [snapshots, setSnapshots] = useState<DailySnapshot[]>([]);
+  const [latest, setLatest] = useState<Record<string, BorinIndex>>({});
+  const [history, setHistory] = useState<BorinIndex[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedIndex, setSelectedIndex] = useState<string | null>(null);
   const [selectedIndicesChart, setSelectedIndicesChart] = useState<string[]>(INDEX_CODES);
 
   useEffect(() => {
+    let active = true;
     const fetchData = async () => {
       setLoading(true);
       try {
-        const thirtyDaysAgo = new Date();
-        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-        const dateStr = thirtyDaysAgo.toISOString().split('T')[0];
-
-        const { data, error } = await supabase
-          .from('borin_indices_daily')
-          .select('*')
-          .gte('date', dateStr)
-          .order('date', { ascending: true });
-
-        if (error) {
-          console.error('[IndicesBorinPanel] fetch error:', error);
-          setSnapshots([]);
-        } else {
-          setSnapshots(data || []);
-        }
-
-        // Pre-fetch weekly indices for downstream use
-        await getLatestIndices();
-        await fetchBorinIndices(52);
+        const [latestData, historyData] = await Promise.all([
+          getLatestIndices(),
+          fetchBorinIndices(HISTORY_WEEKS),
+        ]);
+        if (!active) return;
+        setLatest(latestData);
+        setHistory(historyData);
       } catch (e) {
+        if (!active) return;
         console.error('[IndicesBorinPanel] unexpected error:', e);
-        setSnapshots([]);
+        setLatest({});
+        setHistory([]);
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     };
     fetchData();
+    return () => {
+      active = false;
+    };
   }, []);
 
-  const todayStr = useMemo(() => {
-    const now = new Date();
-    const utc3 = new Date(now.getTime() - 3 * 60 * 60 * 1000);
-    return utc3.toISOString().split('T')[0];
-  }, []);
+  const chartData = useMemo(() => toSnapshots(history), [history]);
 
-  const todaySnapshots = useMemo(() => {
-    return snapshots.filter(s => s.date === todayStr);
-  }, [snapshots, todayStr]);
+  const latestWeek = useMemo(() => {
+    let week: string | null = null;
+    for (const code of Object.keys(latest)) {
+      const ws = latest[code].week_start;
+      if (week === null || ws > week) week = ws;
+    }
+    return week;
+  }, [latest]);
+
+  const formatWeek = (dateStr: string | null): string => {
+    if (!dateStr) return '';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) return `${parts[2]}/${parts[1]}`;
+    return dateStr;
+  };
 
   const handleToggleIndex = (code: string) => {
     setSelectedIndicesChart(prev =>
@@ -124,7 +146,7 @@ export const IndicesBorinPanel: React.FC = () => {
     );
   }
 
-  if (snapshots.length === 0) {
+  if (Object.keys(latest).length === 0) {
     return (
       <div data-testid="indices-borin-panel" className="mb-6">
         <div className="flex items-center gap-2 mb-4">
@@ -136,7 +158,7 @@ export const IndicesBorinPanel: React.FC = () => {
         <div className="text-center py-12 bg-slate-900 rounded-xl border border-dashed border-slate-700">
           <BarChart3 size={48} className="mx-auto mb-4 opacity-50 text-slate-500" />
           <p className="text-slate-400 font-mono">
-            Sem dados &mdash; execute o snapshot do dia
+            Sem dados &mdash; nenhum indice calculado ainda
           </p>
         </div>
       </div>
@@ -154,14 +176,14 @@ export const IndicesBorinPanel: React.FC = () => {
           </h2>
         </div>
         <div className="text-xs text-slate-500 font-mono">
-          {todaySnapshots.length} indices hoje &middot; {snapshots.length} snapshots (30d)
+          {Object.keys(latest).length} indices &middot; semana {formatWeek(latestWeek)}
         </div>
       </div>
 
       {/* 9 Index Cards */}
       <div className="grid grid-cols-3 md:grid-cols-3 lg:grid-cols-9 gap-3">
         {INDEX_CODES.map(code => {
-          const snap = todaySnapshots.find(s => s.index_code === code);
+          const snap = latest[code];
           const isSelected = selectedIndex === code;
           return (
             <button
@@ -194,34 +216,30 @@ export const IndicesBorinPanel: React.FC = () => {
                 {BORIN_INDICES[code]}
               </div>
               {snap ? (
-                <>
-                  <div className="flex items-end justify-between">
-                    <div>
-                      <div
-                        data-testid={`index-count-${code}`}
-                        className="text-xl font-black text-white"
-                      >
-                        {snap.article_count}
-                      </div>
-                      <div className="text-[10px] text-slate-500">artigos</div>
+                <div className="flex items-end justify-between">
+                  <div>
+                    <div
+                      data-testid={`index-count-${code}`}
+                      className="text-xl font-black text-white"
+                    >
+                      {snap.article_count}
                     </div>
-                    <div className="text-right">
-                      <div
-                        data-testid={`index-score-${code}`}
-                        className="text-sm font-bold text-white"
-                      >
-                        {snap.avg_score_rodrigo !== null
-                          ? Math.round(snap.avg_score_rodrigo)
-                          : '--'}
-                      </div>
-                      <div className="text-lg">
-                        {sentimentEmoji(snap.sentiment_label)}
-                      </div>
+                    <div className="text-[10px] text-slate-500">artigos</div>
+                  </div>
+                  <div className="text-right">
+                    <div
+                      data-testid={`index-score-${code}`}
+                      className="text-sm font-bold text-white"
+                    >
+                      {Math.round(snap.score)}
+                    </div>
+                    <div className="text-lg">
+                      {sentimentEmojiFromScore(snap.score)}
                     </div>
                   </div>
-                </>
+                </div>
               ) : (
-                <div className="text-[10px] text-slate-600 italic">sem snapshot</div>
+                <div className="text-[10px] text-slate-600 italic">sem dados</div>
               )}
             </button>
           );
@@ -230,7 +248,7 @@ export const IndicesBorinPanel: React.FC = () => {
 
       {/* Chart */}
       <IndicesBorinChart
-        data={snapshots}
+        data={chartData}
         selectedIndices={selectedIndicesChart}
         onToggleIndex={handleToggleIndex}
       />
